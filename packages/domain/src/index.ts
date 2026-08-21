@@ -86,3 +86,15 @@ export function publishObservationHandbook(input: { role: FamilyRole }): { visib
   }
   return { visibility: "public" };
 }
+
+export type ObservationTag = { childId: string; name: string };
+
+export function createObservationTag(input: ObservationTag): ObservationTag {
+  const name = input.name.trim();
+  if (!name) throw new Error("tag name is required");
+  return { childId: input.childId, name };
+}
+
+export function groupTagsByChild(tags: ObservationTag[], childId: string): ObservationTag[] {
+  return tags.filter(tag => tag.childId === childId);
+}
