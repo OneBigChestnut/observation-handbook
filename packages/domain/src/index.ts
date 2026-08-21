@@ -101,3 +101,21 @@ export function createObservationTag(input: ObservationTag): ObservationTag {
 export function groupTagsByChild(tags: ObservationTag[], childId: string): ObservationTag[] {
   return tags.filter(tag => tag.childId === childId);
 }
+
+export type PrintPreflightIssue = {
+  code: "low_resolution" | "safe_area" | "text_overflow";
+};
+
+export function preflightPrintExport(input: {
+  photos: Array<{ widthPx: number; heightPx: number }>;
+  hasSafeAreaViolation: boolean;
+  hasTextOverflow: boolean;
+}): PrintPreflightIssue[] {
+  const issues: PrintPreflightIssue[] = [];
+  if (input.photos.some(photo => Math.min(photo.widthPx, photo.heightPx) < 1_500)) {
+    issues.push({ code: "low_resolution" });
+  }
+  if (input.hasSafeAreaViolation) issues.push({ code: "safe_area" });
+  if (input.hasTextOverflow) issues.push({ code: "text_overflow" });
+  return issues;
+}

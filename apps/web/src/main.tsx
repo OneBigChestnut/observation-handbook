@@ -25,6 +25,7 @@ type Handbook = {
 };
 
 type TagSummary = { name: string; cardCount: number; handbookCount: number; lastSeen: string; color: string };
+type ExportFile = { title: string; handbook: string; kind: "屏幕 PDF" | "印刷 PDF"; createdAt: string; size: string; status: "可下载" | "需要预检" };
 
 const seedCards: Card[] = [
   { id: "1", date: "08.18", title: "银杏叶的边缘", note: "今天发现最外圈的叶子已经有一点点金黄。", tags: ["银杏", "夏末"], photos: ["photo-1502082553048-f009c37129b9", "photo-1523712999610-f77fbcfc3843"] },
@@ -48,6 +49,12 @@ const tags: TagSummary[] = [
   { name: "雨", cardCount: 7, handbookCount: 1, lastSeen: "07.30", color: "blue" },
   { name: "光影", cardCount: 5, handbookCount: 0, lastSeen: "08.09", color: "rose" },
   { name: "家里", cardCount: 4, handbookCount: 0, lastSeen: "08.09", color: "olive" },
+];
+
+const exportsList: ExportFile[] = [
+  { title: "银杏的一年 · 屏幕版", handbook: "银杏的一年", kind: "屏幕 PDF", createdAt: "2026.08.18", size: "12.4 MB", status: "可下载" },
+  { title: "雨天收集册 · 印刷版", handbook: "雨天收集册", kind: "印刷 PDF", createdAt: "2026.07.30", size: "25.7 MB", status: "可下载" },
+  { title: "门前的街道 · 印刷版", handbook: "门前的街道", kind: "印刷 PDF", createdAt: "今天", size: "—", status: "需要预检" },
 ];
 
 const photoChoices = ["photo-1502082553048-f009c37129b9", "photo-1511497584788-876760111969", "photo-1531219572328-a0171b4448a3", "photo-1497250681960-ef046c08a56e"];
@@ -88,6 +95,10 @@ function TagTile({ tag }: { tag: TagSummary }) {
   </article>;
 }
 
+function ExportRow({ file }: { file: ExportFile }) {
+  return <article className="export-row"><div className="pdf-mark">PDF</div><div className="export-title"><h2>{file.title}</h2><p>{file.handbook} · {file.kind}</p></div><time>{file.createdAt}</time><span className={file.status === "可下载" ? "export-ready" : "export-warning"}>{file.status}</span><span className="export-size">{file.size}</span><button>{file.status === "可下载" ? "下载" : "查看预检"} →</button></article>;
+}
+
 function App() {
   const [activeNav, setActiveNav] = useState("今日记录");
   const [view, setView] = useState<CardView>(DEFAULT_CARD_VIEW);
@@ -99,7 +110,7 @@ function App() {
   const [draftTags, setDraftTags] = useState<string[]>(["银杏"]);
   const heading = useMemo(() => activeNav === "今日记录" ? "八月的观察" : activeNav, [activeNav]);
   const isRecordView = activeNav === "今日记录";
-  const actionLabel = isRecordView ? "新建记录" : activeNav === "标签管理" ? "新建标签" : "新建手册";
+  const actionLabel = isRecordView ? "新建记录" : activeNav === "标签管理" ? "新建标签" : activeNav === "导出文件" ? "导出手册" : "新建手册";
   const togglePhoto = (photo: string) => setDraftPhotos(current => current.includes(photo) ? current.filter(item => item !== photo) : current.length < 4 ? [...current, photo] : current);
   const toggleTag = (tag: string) => setDraftTags(current => current.includes(tag) ? current.filter(item => item !== tag) : [...current, tag]);
   const saveCard = () => {
@@ -135,7 +146,7 @@ function App() {
         <div className="top-actions"><button className="search">⌕ <span>搜索</span></button><button className="new-card" onClick={() => isRecordView && setComposerOpen(true)}>＋ {actionLabel}</button></div>
       </header>
       <section className="page-heading">
-        <div><p className="eyebrow">{child}的观察档案 · 2026</p><h1>{heading}</h1><p className="subhead">{isRecordView ? "把当下的发现，收进时间的册页。" : activeNav === "观察手册" ? "将同一主题的发现编成可以持续生长的手册。" : activeNav === "标签管理" ? "为观察命名，并把同一主题的记录聚拢在一起。" : "按孩子独立整理和查看内容。"}</p></div>
+        <div><p className="eyebrow">{child}的观察档案 · 2026</p><h1>{heading}</h1><p className="subhead">{isRecordView ? "把当下的发现，收进时间的册页。" : activeNav === "观察手册" ? "将同一主题的发现编成可以持续生长的手册。" : activeNav === "标签管理" ? "为观察命名，并把同一主题的记录聚拢在一起。" : activeNav === "导出文件" ? "每一次导出都保存为不可变的手册快照。" : "按孩子独立整理和查看内容。"}</p></div>
         <div className="summary"><b>{isRecordView ? "06" : "03"}</b><span>{isRecordView ? "本月记录" : "观察手册"}</span><em></em><b>{isRecordView ? "04" : "39"}</b><span>{isRecordView ? "观察主题" : "收录卡片"}</span></div>
       </section>
       {isRecordView && <section className="toolbar">
@@ -151,6 +162,7 @@ function App() {
       {isRecordView && view === "calendar" && <section className="calendar-view"><div className="weekday">一</div><div className="weekday">二</div><div className="weekday">三</div><div className="weekday">四</div><div className="weekday">五</div><div className="weekday">六</div><div className="weekday">日</div>{Array.from({ length: 31 }, (_, i) => <div className="calendar-day" key={i}><b>{i + 1}</b>{cardItems.find(card => Number(card.date.slice(3)) === i + 1) && <span>有记录</span>}</div>)}</section>}
       {activeNav === "观察手册" && <section className="handbook-view"><div className="handbook-rule"><p>正在整理</p><i></i><span>按最近更新</span></div><div className="handbook-grid">{handbooks.map(handbook => <HandbookTile key={handbook.id} handbook={handbook} />)}</div></section>}
       {activeNav === "标签管理" && <section className="tag-view"><div className="tag-rule"><p>全部标签</p><i></i><span>{tags.length} 个主题</span></div><div className="tag-grid">{tags.map(tag => <TagTile key={tag.name} tag={tag} />)}</div></section>}
+      {activeNav === "导出文件" && <section className="export-view"><div className="export-note"><div><b>印刷版默认附带 3mm 出血与裁切线</b><span>导出前会检查图片分辨率、安全区和文字溢出。</span></div><button>新建印刷导出 →</button></div><div className="export-rule"><p>导出历史</p><i></i><span>{exportsList.length} 个文件</span></div><div className="export-list">{exportsList.map(file => <ExportRow key={file.title} file={file} />)}</div></section>}
       {isComposerOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => setComposerOpen(false)}><form className="card-composer" onSubmit={(event) => { event.preventDefault(); saveCard(); }} onMouseDown={event => event.stopPropagation()}>
         <header><div><p>为 {child} 新建</p><h2>观察卡片</h2></div><button type="button" aria-label="关闭新建卡片" onClick={() => setComposerOpen(false)}>×</button></header>
         <label className="field-label">选择照片 <span>{draftPhotos.length}/4</span></label><div className="photo-picker">{photoChoices.map(photo => <button type="button" className={draftPhotos.includes(photo) ? "picked" : ""} key={photo} onClick={() => togglePhoto(photo)}><img src={imageUrl(photo, 180)} alt="" /><i>{draftPhotos.includes(photo) ? "✓" : "+"}</i></button>)}</div>
