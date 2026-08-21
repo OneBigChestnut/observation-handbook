@@ -25,3 +25,20 @@ export function retireTemplateVersion(input: { usageCount: number }): { state: "
   }
   return { state: "retired" };
 }
+
+export type FamilyRole = "family_admin" | "family_reader";
+export type FamilyMember = { accountId: string; role: FamilyRole };
+
+export function assignFamilyRole(members: FamilyMember[], accountId: string, role: FamilyRole): FamilyMember[] {
+  const next = members.filter(member => member.accountId !== accountId);
+  if (role === "family_admin" && next.some(member => member.role === "family_admin")) {
+    throw new Error("a family has exactly one family administrator");
+  }
+  return [...next, { accountId, role }];
+}
+
+export function assertChildResourceAccess(input: { selectedChildId: string; resourceChildId: string }): void {
+  if (input.selectedChildId !== input.resourceChildId) {
+    throw new Error("child scope violation");
+  }
+}
