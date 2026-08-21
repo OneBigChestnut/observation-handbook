@@ -32,6 +32,14 @@ export function retireTemplateVersion(input: { usageCount: number }): { state: "
 export type FamilyRole = "family_admin" | "family_reader";
 export type FamilyMember = { accountId: string; role: FamilyRole };
 
+export type AccountRole = FamilyRole | "super_admin";
+
+export function assertSuperAdminAccess(role: AccountRole): void {
+  if (role !== "super_admin") {
+    throw new Error("super administrator access is required");
+  }
+}
+
 export function assignFamilyRole(members: FamilyMember[], accountId: string, role: FamilyRole): FamilyMember[] {
   const next = members.filter(member => member.accountId !== accountId);
   if (role === "family_admin" && next.some(member => member.role === "family_admin")) {
