@@ -58,3 +58,31 @@ export function createThumbnailUrl(assetKey: string, width: number): string {
 
   return `/media/${assetKey}?width=${width}&fit=cover`;
 }
+
+export type ObservationHandbook = {
+  childId: string;
+  title: string;
+  introduction: string;
+  startedAt?: string;
+  completedAt?: string;
+  status: "ongoing" | "completed";
+  visibility: "family";
+};
+
+export function createObservationHandbook(
+  input: Omit<ObservationHandbook, "status" | "visibility">,
+): ObservationHandbook {
+  return {
+    ...input,
+    completedAt: input.completedAt,
+    status: input.completedAt ? "completed" : "ongoing",
+    visibility: "family",
+  };
+}
+
+export function publishObservationHandbook(input: { role: FamilyRole }): { visibility: "public" } {
+  if (input.role !== "family_admin") {
+    throw new Error("only the family administrator can publish a handbook");
+  }
+  return { visibility: "public" };
+}
