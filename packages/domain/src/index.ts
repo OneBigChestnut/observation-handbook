@@ -37,6 +37,9 @@ export function assignFamilyRole(members: FamilyMember[], accountId: string, rol
   if (role === "family_admin" && next.some(member => member.role === "family_admin")) {
     throw new Error("a family has exactly one family administrator");
   }
+  if (role === "family_reader" && !next.some(member => member.role === "family_admin")) {
+    throw new Error("a family has exactly one family administrator");
+  }
   return [...next, { accountId, role }];
 }
 

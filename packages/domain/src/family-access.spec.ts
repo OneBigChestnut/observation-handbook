@@ -20,6 +20,12 @@ describe("family access rules", () => {
     ]);
   });
 
+  it("does not allow the only administrator to be downgraded to read-only", () => {
+    expect(() => api.assignFamilyRole([
+      { accountId: "a1", role: "family_admin" },
+    ], "a1", "family_reader")).toThrow("one family administrator");
+  });
+
   it("rejects a resource that belongs to a different child", () => {
     expect(() => api.assertChildResourceAccess({ selectedChildId: "ann", resourceChildId: "mumu" })).toThrow("child scope");
   });
