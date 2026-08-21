@@ -106,6 +106,18 @@ export type PrintPreflightIssue = {
   code: "low_resolution" | "safe_area" | "text_overflow";
 };
 
+export type PdfExportKind = "screen" | "print";
+
+export function getPdfExportSpec(kind: PdfExportKind): {
+  bleedMm: number;
+  cropMarks: boolean;
+  runsPrintPreflight: boolean;
+} {
+  return kind === "print"
+    ? { bleedMm: 3, cropMarks: true, runsPrintPreflight: true }
+    : { bleedMm: 0, cropMarks: false, runsPrintPreflight: false };
+}
+
 export function preflightPrintExport(input: {
   photos: Array<{ widthPx: number; heightPx: number }>;
   hasSafeAreaViolation: boolean;
