@@ -90,6 +90,10 @@ export function publishObservationHandbook(input: { role: FamilyRole }): { visib
   return { visibility: "public" };
 }
 
+export function listPublicHandbooks<T extends { visibility: "family" | "public" }>(handbooks: T[]): T[] {
+  return handbooks.filter(handbook => handbook.visibility === "public");
+}
+
 export type ObservationTag = { childId: string; name: string };
 
 export function createObservationTag(input: ObservationTag): ObservationTag {

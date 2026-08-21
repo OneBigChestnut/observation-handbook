@@ -26,6 +26,7 @@ type Handbook = {
 
 type TagSummary = { name: string; cardCount: number; handbookCount: number; lastSeen: string; color: string };
 type ExportFile = { id: string; title: string; handbook: string; kind: "屏幕 PDF" | "印刷 PDF"; createdAt: string; size: string; status: "可下载" | "需要预检" };
+type PublicHandbook = { title: string; introduction: string; family: string; child: string; publishedAt: string; cardCount: number; cover: string; tag: string };
 
 const seedCards: Card[] = [
   { id: "1", date: "08.18", title: "银杏叶的边缘", note: "今天发现最外圈的叶子已经有一点点金黄。", tags: ["银杏", "夏末"], photos: ["photo-1502082553048-f009c37129b9", "photo-1523712999610-f77fbcfc3843"] },
@@ -55,6 +56,12 @@ const seedExports: ExportFile[] = [
   { id: "export-ginkgo-screen", title: "银杏的一年 · 屏幕版", handbook: "银杏的一年", kind: "屏幕 PDF", createdAt: "2026.08.18", size: "12.4 MB", status: "可下载" },
   { id: "export-rain-print", title: "雨天收集册 · 印刷版", handbook: "雨天收集册", kind: "印刷 PDF", createdAt: "2026.07.30", size: "25.7 MB", status: "可下载" },
   { id: "export-street-print", title: "门前的街道 · 印刷版", handbook: "门前的街道", kind: "印刷 PDF", createdAt: "今天", size: "—", status: "需要预检" },
+];
+
+const publicHandbooks: PublicHandbook[] = [
+  { title: "四季里的银杏", introduction: "从一片新芽开始，记录树叶颜色、气味和落果。", family: "林家档案室", child: "乐乐", publishedAt: "08.20", cardCount: 18, cover: "photo-1502082553048-f009c37129b9", tag: "自然观察" },
+  { title: "河边的小动物", introduction: "在固定的散步路线上遇见蜗牛、白鹭和小鱼。", family: "王家观察室", child: "小满", publishedAt: "08.18", cardCount: 12, cover: "photo-1531219572328-a0171b4448a3", tag: "小动物" },
+  { title: "一条街的夏天", introduction: "店铺招牌、修补中的路面和每天不同的光。", family: "陈家手册", child: "豆豆", publishedAt: "08.15", cardCount: 21, cover: "photo-1470770841072-f978cf4d019e", tag: "城市漫游" },
 ];
 
 const photoChoices = ["photo-1502082553048-f009c37129b9", "photo-1511497584788-876760111969", "photo-1531219572328-a0171b4448a3", "photo-1497250681960-ef046c08a56e"];
@@ -99,6 +106,10 @@ function ExportRow({ file, onDelete, onDownload }: { file: ExportFile; onDelete:
   return <article className="export-row"><div className="pdf-mark">PDF</div><div className="export-title"><h2>{file.title}</h2><p>{file.handbook} · {file.kind}</p></div><time>{file.createdAt}</time><span className={file.status === "可下载" ? "export-ready" : "export-warning"}>{file.status}</span><span className="export-size">{file.size}</span><div className="export-actions"><button onClick={() => onDownload(file)}>{file.status === "可下载" ? "下载" : "查看预检"} →</button><button className="delete-export" aria-label={`删除 ${file.title}`} onClick={() => onDelete(file.id)}>删除</button></div></article>;
 }
 
+function PublicHandbookTile({ handbook }: { handbook: PublicHandbook }) {
+  return <article className="public-handbook-tile"><img src={imageUrl(handbook.cover, 720)} alt="" /><div className="public-handbook-copy"><div><span>#{handbook.tag}</span><time>发布于 {handbook.publishedAt}</time></div><h2>{handbook.title}</h2><p>{handbook.introduction}</p><footer><b>{handbook.family}</b><span>{handbook.child} · {handbook.cardCount} 张卡片</span><i>阅读 →</i></footer></div></article>;
+}
+
 function App() {
   const [activeNav, setActiveNav] = useState("今日记录");
   const [view, setView] = useState<CardView>(DEFAULT_CARD_VIEW);
@@ -115,6 +126,7 @@ function App() {
   const [exportNotice, setExportNotice] = useState("");
   const heading = useMemo(() => activeNav === "今日记录" ? "八月的观察" : activeNav, [activeNav]);
   const isRecordView = activeNav === "今日记录";
+  const isPublicSpace = activeNav === "公共空间";
   const actionLabel = isRecordView ? "新建记录" : activeNav === "标签管理" ? "新建标签" : activeNav === "导出文件" ? "导出手册" : "新建手册";
   const togglePhoto = (photo: string) => setDraftPhotos(current => current.includes(photo) ? current.filter(item => item !== photo) : current.length < 4 ? [...current, photo] : current);
   const toggleTag = (tag: string) => setDraftTags(current => current.includes(tag) ? current.filter(item => item !== tag) : [...current, tag]);
@@ -165,11 +177,11 @@ function App() {
       <header className="topbar">
         <button className="mobile-menu" aria-label="打开导航">☰</button>
         <div className="crumb"><span>家庭端</span><b>/</b><strong>{activeNav}</strong></div>
-        <div className="top-actions"><button className="search">⌕ <span>搜索</span></button><button className="new-card" onClick={() => isRecordView ? setComposerOpen(true) : activeNav === "导出文件" ? setExportDialogOpen(true) : undefined}>＋ {actionLabel}</button></div>
+        <div className="top-actions"><button className="search">⌕ <span>搜索</span></button>{!isPublicSpace && <button className="new-card" onClick={() => isRecordView ? setComposerOpen(true) : activeNav === "导出文件" ? setExportDialogOpen(true) : undefined}>＋ {actionLabel}</button>}</div>
       </header>
       <section className="page-heading">
-        <div><p className="eyebrow">{child}的观察档案 · 2026</p><h1>{heading}</h1><p className="subhead">{isRecordView ? "把当下的发现，收进时间的册页。" : activeNav === "观察手册" ? "将同一主题的发现编成可以持续生长的手册。" : activeNav === "标签管理" ? "为观察命名，并把同一主题的记录聚拢在一起。" : activeNav === "导出文件" ? "生成后可下载或删除；屏幕版无出血，印刷版含 3mm 出血与裁切线。" : "按孩子独立整理和查看内容。"}</p></div>
-        <div className="summary"><b>{isRecordView ? "06" : "03"}</b><span>{isRecordView ? "本月记录" : "观察手册"}</span><em></em><b>{isRecordView ? "04" : "39"}</b><span>{isRecordView ? "观察主题" : "收录卡片"}</span></div>
+        <div><p className="eyebrow">{isPublicSpace ? "公共观察档案 · 正在持续更新" : `${child}的观察档案 · 2026`}</p><h1>{heading}</h1><p className="subhead">{isRecordView ? "把当下的发现，收进时间的册页。" : activeNav === "观察手册" ? "将同一主题的发现编成可以持续生长的手册。" : activeNav === "标签管理" ? "为观察命名，并把同一主题的记录聚拢在一起。" : activeNav === "导出文件" ? "生成后可下载或删除；屏幕版无出血，印刷版含 3mm 出血与裁切线。" : "来自不同家庭的持续观察手册。"}</p></div>
+        <div className="summary"><b>{isRecordView ? "06" : isPublicSpace ? "03" : "03"}</b><span>{isRecordView ? "本月记录" : isPublicSpace ? "新近发布" : "观察手册"}</span><em></em><b>{isRecordView ? "04" : isPublicSpace ? "51" : "39"}</b><span>{isRecordView ? "观察主题" : isPublicSpace ? "收录卡片" : "收录卡片"}</span></div>
       </section>
       {isRecordView && <section className="toolbar">
         <div className="month-select">2026 年 08 月 <span>⌄</span></div>
@@ -185,6 +197,7 @@ function App() {
       {activeNav === "观察手册" && <section className="handbook-view"><div className="handbook-rule"><p>正在整理</p><i></i><span>按最近更新</span></div><div className="handbook-grid">{handbooks.map(handbook => <HandbookTile key={handbook.id} handbook={handbook} />)}</div></section>}
       {activeNav === "标签管理" && <section className="tag-view"><div className="tag-rule"><p>全部标签</p><i></i><span>{tags.length} 个主题</span></div><div className="tag-grid">{tags.map(tag => <TagTile key={tag.name} tag={tag} />)}</div></section>}
       {activeNav === "导出文件" && <section className="export-view">{exportNotice && <div className="export-success"><span>✓</span>{exportNotice}<button aria-label="关闭提示" onClick={() => setExportNotice("")}>×</button></div>}<div className="export-rule"><p>已生成文件</p><i></i><span>{exportFiles.length} 个文件</span></div><div className="export-list">{exportFiles.map(file => <ExportRow key={file.id} file={file} onDelete={id => setExportFiles(current => removeGeneratedExport(current, id))} onDownload={downloadExport} />)}</div></section>}
+      {isPublicSpace && <section className="public-space-view"><div className="public-rule"><p>最新发布</p><i></i><span>全部公开手册</span></div><div className="public-handbook-grid">{publicHandbooks.map(handbook => <PublicHandbookTile key={handbook.title} handbook={handbook} />)}</div></section>}
       {isComposerOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => setComposerOpen(false)}><form className="card-composer" onSubmit={(event) => { event.preventDefault(); saveCard(); }} onMouseDown={event => event.stopPropagation()}>
         <header><div><p>为 {child} 新建</p><h2>观察卡片</h2></div><button type="button" aria-label="关闭新建卡片" onClick={() => setComposerOpen(false)}>×</button></header>
         <label className="field-label">选择照片 <span>{draftPhotos.length}/4</span></label><div className="photo-picker">{photoChoices.map(photo => <button type="button" className={draftPhotos.includes(photo) ? "picked" : ""} key={photo} onClick={() => togglePhoto(photo)}><img src={imageUrl(photo, 180)} alt="" /><i>{draftPhotos.includes(photo) ? "✓" : "+"}</i></button>)}</div>
