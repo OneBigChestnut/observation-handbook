@@ -14,6 +14,10 @@ describe("observation domain rules", () => {
     expect(() => api.createObservationCard({ childId: "ann", photos: ["1", "2", "3", "4", "5"], text: "观察" })).toThrow("4");
   });
 
+  it("requires at least one photo on a card", () => {
+    expect(() => api.createObservationCard({ childId: "ann", photos: [], text: "观察" })).toThrow("at least 1");
+  });
+
   it("rejects cards from another child in a handbook", () => {
     expect(() => api.validateHandbookCardChildren("ann", ["ann", "mumu"])).toThrow("child scope");
   });

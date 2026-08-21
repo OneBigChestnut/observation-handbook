@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { DEFAULT_CARD_VIEW, type CardView } from "@observation-handbook/domain";
+import { createObservationCard, DEFAULT_CARD_VIEW, type CardView } from "@observation-handbook/domain";
 import "./styles.css";
 
 type Card = {
@@ -26,7 +26,7 @@ type Handbook = {
 
 type TagSummary = { name: string; cardCount: number; handbookCount: number; lastSeen: string; color: string };
 
-const cards: Card[] = [
+const seedCards: Card[] = [
   { id: "1", date: "08.18", title: "银杏叶的边缘", note: "今天发现最外圈的叶子已经有一点点金黄。", tags: ["银杏", "夏末"], photos: ["photo-1502082553048-f009c37129b9", "photo-1523712999610-f77fbcfc3843"] },
   { id: "2", date: "08.16", title: "雨后的石阶", note: "水从石缝里流过，像一条很小的河。", tags: ["街道", "雨"], photos: ["photo-1511497584788-876760111969"] },
   { id: "3", date: "08.12", title: "蜗牛的下午", note: "它把触角伸得很长，背着房子走得不快。", tags: ["小动物"], photos: ["photo-1531219572328-a0171b4448a3"] },
@@ -49,6 +49,8 @@ const tags: TagSummary[] = [
   { name: "光影", cardCount: 5, handbookCount: 0, lastSeen: "08.09", color: "rose" },
   { name: "家里", cardCount: 4, handbookCount: 0, lastSeen: "08.09", color: "olive" },
 ];
+
+const photoChoices = ["photo-1502082553048-f009c37129b9", "photo-1511497584788-876760111969", "photo-1531219572328-a0171b4448a3", "photo-1497250681960-ef046c08a56e"];
 
 const viewNames: Record<CardView, string> = { month: "按月", timeline: "时间流", calendar: "月历" };
 const imageUrl = (id: string, width = 480) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${width}&q=80`;
@@ -90,9 +92,21 @@ function App() {
   const [activeNav, setActiveNav] = useState("今日记录");
   const [view, setView] = useState<CardView>(DEFAULT_CARD_VIEW);
   const [child, setChild] = useState("乐乐");
+  const [cardItems, setCardItems] = useState(seedCards);
+  const [isComposerOpen, setComposerOpen] = useState(false);
+  const [draftText, setDraftText] = useState("");
+  const [draftPhotos, setDraftPhotos] = useState([photoChoices[0]]);
+  const [draftTags, setDraftTags] = useState<string[]>(["银杏"]);
   const heading = useMemo(() => activeNav === "今日记录" ? "八月的观察" : activeNav, [activeNav]);
   const isRecordView = activeNav === "今日记录";
   const actionLabel = isRecordView ? "新建记录" : activeNav === "标签管理" ? "新建标签" : "新建手册";
+  const togglePhoto = (photo: string) => setDraftPhotos(current => current.includes(photo) ? current.filter(item => item !== photo) : current.length < 4 ? [...current, photo] : current);
+  const toggleTag = (tag: string) => setDraftTags(current => current.includes(tag) ? current.filter(item => item !== tag) : [...current, tag]);
+  const saveCard = () => {
+    const created = createObservationCard({ childId: child, photos: draftPhotos, text: draftText.trim() });
+    setCardItems(current => [{ id: String(Date.now()), date: "08.21", title: created.text.slice(0, 12) || "新的观察", note: created.text || "今天的观察。", tags: draftTags, photos: created.photos }, ...current]);
+    setDraftText(""); setDraftPhotos([photoChoices[0]]); setDraftTags(["银杏"]); setComposerOpen(false);
+  };
 
   return <div className="app-shell">
     <aside className="sidebar">
@@ -118,7 +132,7 @@ function App() {
       <header className="topbar">
         <button className="mobile-menu" aria-label="打开导航">☰</button>
         <div className="crumb"><span>家庭端</span><b>/</b><strong>{activeNav}</strong></div>
-        <div className="top-actions"><button className="search">⌕ <span>搜索</span></button><button className="new-card">＋ {actionLabel}</button></div>
+        <div className="top-actions"><button className="search">⌕ <span>搜索</span></button><button className="new-card" onClick={() => isRecordView && setComposerOpen(true)}>＋ {actionLabel}</button></div>
       </header>
       <section className="page-heading">
         <div><p className="eyebrow">{child}的观察档案 · 2026</p><h1>{heading}</h1><p className="subhead">{isRecordView ? "把当下的发现，收进时间的册页。" : activeNav === "观察手册" ? "将同一主题的发现编成可以持续生长的手册。" : activeNav === "标签管理" ? "为观察命名，并把同一主题的记录聚拢在一起。" : "按孩子独立整理和查看内容。"}</p></div>
@@ -131,12 +145,19 @@ function App() {
       </section>}
       {isRecordView && view === "month" && <section className="month-view">
         <div className="month-rule"><span>08</span><i></i><p>2026 · 八月</p></div>
-        <div className="card-grid">{cards.map(card => <CardTile key={card.id} card={card} />)}</div>
+        <div className="card-grid">{cardItems.map(card => <CardTile key={card.id} card={card} />)}</div>
       </section>}
-      {isRecordView && view === "timeline" && <section className="timeline-view">{cards.map(card => <div className="timeline-row" key={card.id}><time>2026. {card.date}</time><CardTile card={card} /></div>)}</section>}
-      {isRecordView && view === "calendar" && <section className="calendar-view"><div className="weekday">一</div><div className="weekday">二</div><div className="weekday">三</div><div className="weekday">四</div><div className="weekday">五</div><div className="weekday">六</div><div className="weekday">日</div>{Array.from({ length: 31 }, (_, i) => <div className="calendar-day" key={i}><b>{i + 1}</b>{cards.find(card => Number(card.date.slice(3)) === i + 1) && <span>有记录</span>}</div>)}</section>}
+      {isRecordView && view === "timeline" && <section className="timeline-view">{cardItems.map(card => <div className="timeline-row" key={card.id}><time>2026. {card.date}</time><CardTile card={card} /></div>)}</section>}
+      {isRecordView && view === "calendar" && <section className="calendar-view"><div className="weekday">一</div><div className="weekday">二</div><div className="weekday">三</div><div className="weekday">四</div><div className="weekday">五</div><div className="weekday">六</div><div className="weekday">日</div>{Array.from({ length: 31 }, (_, i) => <div className="calendar-day" key={i}><b>{i + 1}</b>{cardItems.find(card => Number(card.date.slice(3)) === i + 1) && <span>有记录</span>}</div>)}</section>}
       {activeNav === "观察手册" && <section className="handbook-view"><div className="handbook-rule"><p>正在整理</p><i></i><span>按最近更新</span></div><div className="handbook-grid">{handbooks.map(handbook => <HandbookTile key={handbook.id} handbook={handbook} />)}</div></section>}
       {activeNav === "标签管理" && <section className="tag-view"><div className="tag-rule"><p>全部标签</p><i></i><span>{tags.length} 个主题</span></div><div className="tag-grid">{tags.map(tag => <TagTile key={tag.name} tag={tag} />)}</div></section>}
+      {isComposerOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => setComposerOpen(false)}><form className="card-composer" onSubmit={(event) => { event.preventDefault(); saveCard(); }} onMouseDown={event => event.stopPropagation()}>
+        <header><div><p>为 {child} 新建</p><h2>观察卡片</h2></div><button type="button" aria-label="关闭新建卡片" onClick={() => setComposerOpen(false)}>×</button></header>
+        <label className="field-label">选择照片 <span>{draftPhotos.length}/4</span></label><div className="photo-picker">{photoChoices.map(photo => <button type="button" className={draftPhotos.includes(photo) ? "picked" : ""} key={photo} onClick={() => togglePhoto(photo)}><img src={imageUrl(photo, 180)} alt="" /><i>{draftPhotos.includes(photo) ? "✓" : "+"}</i></button>)}</div>
+        <label className="field-label" htmlFor="observation-text">写下发现</label><textarea id="observation-text" value={draftText} onChange={event => setDraftText(event.target.value)} placeholder="今天发现了什么？" rows={4} />
+        <span className="field-label">添加标签</span><div className="composer-tags">{tags.map(tag => <button type="button" className={draftTags.includes(tag.name) ? "picked" : ""} key={tag.name} onClick={() => toggleTag(tag.name)}>#{tag.name}</button>)}</div>
+        <footer><button type="button" onClick={() => setComposerOpen(false)}>取消</button><button className="save-card" type="submit">保存记录</button></footer>
+      </form></div>}
     </main>
   </div>;
 }

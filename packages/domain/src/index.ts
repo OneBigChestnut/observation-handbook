@@ -7,6 +7,9 @@ export type ObservationCard = {
 };
 
 export function createObservationCard(input: ObservationCard): ObservationCard {
+  if (input.photos.length < 1) {
+    throw new Error("a card must contain at least 1 photo");
+  }
   if (input.photos.length > CARD_PHOTO_LIMIT) {
     throw new Error(`a card can contain at most ${CARD_PHOTO_LIMIT} photos`);
   }
