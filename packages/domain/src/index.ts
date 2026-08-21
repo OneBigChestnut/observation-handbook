@@ -118,6 +118,18 @@ export function getPdfExportSpec(kind: PdfExportKind): {
     : { bleedMm: 0, cropMarks: false, runsPrintPreflight: false };
 }
 
+export function createGeneratedExport(input: {
+  id: string;
+  handbookId: string;
+  kind: PdfExportKind;
+}): { id: string; handbookId: string; kind: PdfExportKind; status: "ready" } {
+  return { ...input, status: "ready" };
+}
+
+export function removeGeneratedExport<T extends { id: string }>(files: T[], id: string): T[] {
+  return files.filter(file => file.id !== id);
+}
+
 export function preflightPrintExport(input: {
   photos: Array<{ widthPx: number; heightPx: number }>;
   hasSafeAreaViolation: boolean;

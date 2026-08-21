@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { createObservationCard, DEFAULT_CARD_VIEW, type CardView } from "@observation-handbook/domain";
+import { createGeneratedExport, createObservationCard, DEFAULT_CARD_VIEW, removeGeneratedExport, type CardView, type PdfExportKind } from "@observation-handbook/domain";
 import "./styles.css";
 
 type Card = {
@@ -25,7 +25,7 @@ type Handbook = {
 };
 
 type TagSummary = { name: string; cardCount: number; handbookCount: number; lastSeen: string; color: string };
-type ExportFile = { title: string; handbook: string; kind: "屏幕 PDF" | "印刷 PDF"; createdAt: string; size: string; status: "可下载" | "需要预检" };
+type ExportFile = { id: string; title: string; handbook: string; kind: "屏幕 PDF" | "印刷 PDF"; createdAt: string; size: string; status: "可下载" | "需要预检" };
 
 const seedCards: Card[] = [
   { id: "1", date: "08.18", title: "银杏叶的边缘", note: "今天发现最外圈的叶子已经有一点点金黄。", tags: ["银杏", "夏末"], photos: ["photo-1502082553048-f009c37129b9", "photo-1523712999610-f77fbcfc3843"] },
@@ -51,10 +51,10 @@ const tags: TagSummary[] = [
   { name: "家里", cardCount: 4, handbookCount: 0, lastSeen: "08.09", color: "olive" },
 ];
 
-const exportsList: ExportFile[] = [
-  { title: "银杏的一年 · 屏幕版", handbook: "银杏的一年", kind: "屏幕 PDF", createdAt: "2026.08.18", size: "12.4 MB", status: "可下载" },
-  { title: "雨天收集册 · 印刷版", handbook: "雨天收集册", kind: "印刷 PDF", createdAt: "2026.07.30", size: "25.7 MB", status: "可下载" },
-  { title: "门前的街道 · 印刷版", handbook: "门前的街道", kind: "印刷 PDF", createdAt: "今天", size: "—", status: "需要预检" },
+const seedExports: ExportFile[] = [
+  { id: "export-ginkgo-screen", title: "银杏的一年 · 屏幕版", handbook: "银杏的一年", kind: "屏幕 PDF", createdAt: "2026.08.18", size: "12.4 MB", status: "可下载" },
+  { id: "export-rain-print", title: "雨天收集册 · 印刷版", handbook: "雨天收集册", kind: "印刷 PDF", createdAt: "2026.07.30", size: "25.7 MB", status: "可下载" },
+  { id: "export-street-print", title: "门前的街道 · 印刷版", handbook: "门前的街道", kind: "印刷 PDF", createdAt: "今天", size: "—", status: "需要预检" },
 ];
 
 const photoChoices = ["photo-1502082553048-f009c37129b9", "photo-1511497584788-876760111969", "photo-1531219572328-a0171b4448a3", "photo-1497250681960-ef046c08a56e"];
@@ -95,8 +95,8 @@ function TagTile({ tag }: { tag: TagSummary }) {
   </article>;
 }
 
-function ExportRow({ file }: { file: ExportFile }) {
-  return <article className="export-row"><div className="pdf-mark">PDF</div><div className="export-title"><h2>{file.title}</h2><p>{file.handbook} · {file.kind}</p></div><time>{file.createdAt}</time><span className={file.status === "可下载" ? "export-ready" : "export-warning"}>{file.status}</span><span className="export-size">{file.size}</span><button>{file.status === "可下载" ? "下载" : "查看预检"} →</button></article>;
+function ExportRow({ file, onDelete, onDownload }: { file: ExportFile; onDelete: (id: string) => void; onDownload: (file: ExportFile) => void }) {
+  return <article className="export-row"><div className="pdf-mark">PDF</div><div className="export-title"><h2>{file.title}</h2><p>{file.handbook} · {file.kind}</p></div><time>{file.createdAt}</time><span className={file.status === "可下载" ? "export-ready" : "export-warning"}>{file.status}</span><span className="export-size">{file.size}</span><div className="export-actions"><button onClick={() => onDownload(file)}>{file.status === "可下载" ? "下载" : "查看预检"} →</button><button className="delete-export" aria-label={`删除 ${file.title}`} onClick={() => onDelete(file.id)}>删除</button></div></article>;
 }
 
 function App() {
@@ -108,6 +108,11 @@ function App() {
   const [draftText, setDraftText] = useState("");
   const [draftPhotos, setDraftPhotos] = useState([photoChoices[0]]);
   const [draftTags, setDraftTags] = useState<string[]>(["银杏"]);
+  const [exportFiles, setExportFiles] = useState(seedExports);
+  const [isExportDialogOpen, setExportDialogOpen] = useState(false);
+  const [selectedHandbookId, setSelectedHandbookId] = useState(handbooks[0].id);
+  const [selectedPdfKind, setSelectedPdfKind] = useState<PdfExportKind>("screen");
+  const [exportNotice, setExportNotice] = useState("");
   const heading = useMemo(() => activeNav === "今日记录" ? "八月的观察" : activeNav, [activeNav]);
   const isRecordView = activeNav === "今日记录";
   const actionLabel = isRecordView ? "新建记录" : activeNav === "标签管理" ? "新建标签" : activeNav === "导出文件" ? "导出手册" : "新建手册";
@@ -117,6 +122,23 @@ function App() {
     const created = createObservationCard({ childId: child, photos: draftPhotos, text: draftText.trim() });
     setCardItems(current => [{ id: String(Date.now()), date: "08.21", title: created.text.slice(0, 12) || "新的观察", note: created.text || "今天的观察。", tags: draftTags, photos: created.photos }, ...current]);
     setDraftText(""); setDraftPhotos([photoChoices[0]]); setDraftTags(["银杏"]); setComposerOpen(false);
+  };
+  const generateExport = () => {
+    const handbook = handbooks.find(item => item.id === selectedHandbookId) ?? handbooks[0];
+    const generated = createGeneratedExport({ id: `export-${Date.now()}`, handbookId: handbook.id, kind: selectedPdfKind });
+    const kind = generated.kind === "screen" ? "屏幕 PDF" : "印刷 PDF";
+    setExportFiles(current => [{ id: generated.id, title: `${handbook.title} · ${generated.kind === "screen" ? "屏幕版" : "印刷版"}`, handbook: handbook.title, kind, createdAt: "刚刚", size: generated.kind === "screen" ? "8.6 MB" : "18.2 MB", status: "可下载" }, ...current]);
+    setExportNotice(`已生成「${handbook.title}」${kind}，现在可以下载。`);
+    setExportDialogOpen(false);
+  };
+  const downloadExport = async (file: ExportFile) => {
+    if (file.status !== "可下载") { setExportNotice("印刷版需要先通过预检，才能生成并下载。"); return; }
+    const { jsPDF } = await import("jspdf");
+    const pdf = new jsPDF({ unit: "mm", format: "a4" });
+    pdf.setFontSize(22); pdf.text(file.handbook, 20, 28);
+    pdf.setFontSize(12); pdf.text(file.kind, 20, 38);
+    pdf.setFontSize(10); pdf.text("Observation handbook export snapshot", 20, 48);
+    pdf.save(`${file.title}.pdf`);
   };
 
   return <div className="app-shell">
@@ -146,7 +168,7 @@ function App() {
         <div className="top-actions"><button className="search">⌕ <span>搜索</span></button><button className="new-card" onClick={() => isRecordView && setComposerOpen(true)}>＋ {actionLabel}</button></div>
       </header>
       <section className="page-heading">
-        <div><p className="eyebrow">{child}的观察档案 · 2026</p><h1>{heading}</h1><p className="subhead">{isRecordView ? "把当下的发现，收进时间的册页。" : activeNav === "观察手册" ? "将同一主题的发现编成可以持续生长的手册。" : activeNav === "标签管理" ? "为观察命名，并把同一主题的记录聚拢在一起。" : activeNav === "导出文件" ? "每一次导出都保存为不可变的手册快照。" : "按孩子独立整理和查看内容。"}</p></div>
+        <div><p className="eyebrow">{child}的观察档案 · 2026</p><h1>{heading}</h1><p className="subhead">{isRecordView ? "把当下的发现，收进时间的册页。" : activeNav === "观察手册" ? "将同一主题的发现编成可以持续生长的手册。" : activeNav === "标签管理" ? "为观察命名，并把同一主题的记录聚拢在一起。" : activeNav === "导出文件" ? "文件生成后可下载或删除，版面内容保留为生成时的快照。" : "按孩子独立整理和查看内容。"}</p></div>
         <div className="summary"><b>{isRecordView ? "06" : "03"}</b><span>{isRecordView ? "本月记录" : "观察手册"}</span><em></em><b>{isRecordView ? "04" : "39"}</b><span>{isRecordView ? "观察主题" : "收录卡片"}</span></div>
       </section>
       {isRecordView && <section className="toolbar">
@@ -162,7 +184,7 @@ function App() {
       {isRecordView && view === "calendar" && <section className="calendar-view"><div className="weekday">一</div><div className="weekday">二</div><div className="weekday">三</div><div className="weekday">四</div><div className="weekday">五</div><div className="weekday">六</div><div className="weekday">日</div>{Array.from({ length: 31 }, (_, i) => <div className="calendar-day" key={i}><b>{i + 1}</b>{cardItems.find(card => Number(card.date.slice(3)) === i + 1) && <span>有记录</span>}</div>)}</section>}
       {activeNav === "观察手册" && <section className="handbook-view"><div className="handbook-rule"><p>正在整理</p><i></i><span>按最近更新</span></div><div className="handbook-grid">{handbooks.map(handbook => <HandbookTile key={handbook.id} handbook={handbook} />)}</div></section>}
       {activeNav === "标签管理" && <section className="tag-view"><div className="tag-rule"><p>全部标签</p><i></i><span>{tags.length} 个主题</span></div><div className="tag-grid">{tags.map(tag => <TagTile key={tag.name} tag={tag} />)}</div></section>}
-      {activeNav === "导出文件" && <section className="export-view"><div className="export-options"><article><span className="export-option-icon screen">▣</span><div><b>屏幕 PDF</b><p>适合电脑、手机和平板查看；不添加出血或裁切线。</p></div><button>导出屏幕版 →</button></article><article><span className="export-option-icon print">✣</span><div><b>印刷 PDF</b><p>默认 3mm 出血与裁切线；导出前检查图片分辨率、安全区和文字溢出。</p></div><button>导出印刷版 →</button></article></div><div className="export-rule"><p>导出历史</p><i></i><span>{exportsList.length} 个文件</span></div><div className="export-list">{exportsList.map(file => <ExportRow key={file.title} file={file} />)}</div></section>}
+      {activeNav === "导出文件" && <section className="export-view">{exportNotice && <div className="export-success"><span>✓</span>{exportNotice}<button aria-label="关闭提示" onClick={() => setExportNotice("")}>×</button></div>}<div className="export-launch"><div><b>将观察手册导出为 PDF</b><p>选择手册和用途后生成文件；屏幕版无出血和裁切线，印刷版则会执行预检。</p></div><button onClick={() => setExportDialogOpen(true)}>导出手册 →</button></div><div className="export-rule"><p>已生成文件</p><i></i><span>{exportFiles.length} 个文件</span></div><div className="export-list">{exportFiles.map(file => <ExportRow key={file.id} file={file} onDelete={id => setExportFiles(current => removeGeneratedExport(current, id))} onDownload={downloadExport} />)}</div></section>}
       {isComposerOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => setComposerOpen(false)}><form className="card-composer" onSubmit={(event) => { event.preventDefault(); saveCard(); }} onMouseDown={event => event.stopPropagation()}>
         <header><div><p>为 {child} 新建</p><h2>观察卡片</h2></div><button type="button" aria-label="关闭新建卡片" onClick={() => setComposerOpen(false)}>×</button></header>
         <label className="field-label">选择照片 <span>{draftPhotos.length}/4</span></label><div className="photo-picker">{photoChoices.map(photo => <button type="button" className={draftPhotos.includes(photo) ? "picked" : ""} key={photo} onClick={() => togglePhoto(photo)}><img src={imageUrl(photo, 180)} alt="" /><i>{draftPhotos.includes(photo) ? "✓" : "+"}</i></button>)}</div>
@@ -170,6 +192,7 @@ function App() {
         <span className="field-label">添加标签</span><div className="composer-tags">{tags.map(tag => <button type="button" className={draftTags.includes(tag.name) ? "picked" : ""} key={tag.name} onClick={() => toggleTag(tag.name)}>#{tag.name}</button>)}</div>
         <footer><button type="button" onClick={() => setComposerOpen(false)}>取消</button><button className="save-card" type="submit">保存记录</button></footer>
       </form></div>}
+      {isExportDialogOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => setExportDialogOpen(false)}><form className="export-dialog" onSubmit={(event) => { event.preventDefault(); generateExport(); }} onMouseDown={event => event.stopPropagation()}><header><div><p>生成新文件</p><h2>导出手册</h2></div><button type="button" aria-label="关闭导出手册" onClick={() => setExportDialogOpen(false)}>×</button></header><label className="field-label" htmlFor="export-handbook">选择观察手册</label><select id="export-handbook" value={selectedHandbookId} onChange={event => setSelectedHandbookId(event.target.value)}>{handbooks.map(handbook => <option value={handbook.id} key={handbook.id}>{handbook.title} · {handbook.cardCount} 张卡片</option>)}</select><span className="field-label">选择 PDF 类型</span><div className="pdf-kind-options"><label className={selectedPdfKind === "screen" ? "selected" : ""}><input type="radio" checked={selectedPdfKind === "screen"} onChange={() => setSelectedPdfKind("screen")} name="pdf-kind" /> <b>屏幕 PDF</b><span>电脑、手机、平板查看；无出血、无裁切线。</span></label><label className={selectedPdfKind === "print" ? "selected" : ""}><input type="radio" checked={selectedPdfKind === "print"} onChange={() => setSelectedPdfKind("print")} name="pdf-kind" /> <b>印刷 PDF</b><span>3mm 出血、裁切线；生成前执行印刷预检。</span></label></div><footer><button type="button" onClick={() => setExportDialogOpen(false)}>取消</button><button className="save-card" type="submit">确认生成</button></footer></form></div>}
     </main>
   </div>;
 }
