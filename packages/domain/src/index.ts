@@ -42,3 +42,19 @@ export function assertChildResourceAccess(input: { selectedChildId: string; reso
     throw new Error("child scope violation");
   }
 }
+
+export const CARD_VIEWS = ["month", "timeline", "calendar"] as const;
+export type CardView = (typeof CARD_VIEWS)[number];
+export const DEFAULT_CARD_VIEW: CardView = "month";
+
+export function isCardView(value: string): value is CardView {
+  return CARD_VIEWS.includes(value as CardView);
+}
+
+export function createThumbnailUrl(assetKey: string, width: number): string {
+  if (!Number.isInteger(width) || width < 1) {
+    throw new Error("thumbnail width must be a positive integer");
+  }
+
+  return `/media/${assetKey}?width=${width}&fit=cover`;
+}
