@@ -167,6 +167,10 @@ export function publishObservationHandbook(input: { role: FamilyRole }): { visib
   return { visibility: "public" };
 }
 
+export function filterObservationCardsByHandbook<T extends { handbookId?: string }>(cards: T[], handbookId: string): T[] {
+  return cards.filter(card => card.handbookId === handbookId);
+}
+
 export function unpublishObservationHandbook(input: { role: FamilyRole }): { visibility: "family" } {
   if (input.role !== "family_admin") {
     throw new Error("only the family administrator can unpublish a handbook");

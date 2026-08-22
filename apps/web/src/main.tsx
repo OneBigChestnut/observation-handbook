@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { assertCardTemplateMatchesHandbook, assignPlatformRole, createGeneratedExport, createObservationCard, createObservationTag, DEFAULT_CARD_VIEW, getCardTemplateCategory, getFamilyAccountPopulation, getTemplateRemovalAction, groupTagsByChild, publishObservationHandbook, removeFamilyMember, removeGeneratedExport, removePlatformMember, unpublishObservationHandbook, type CardView, type PdfExportKind } from "@observation-handbook/domain";
+import { assertCardTemplateMatchesHandbook, assignPlatformRole, createGeneratedExport, createObservationCard, createObservationTag, DEFAULT_CARD_VIEW, filterObservationCardsByHandbook, getCardTemplateCategory, getFamilyAccountPopulation, getTemplateRemovalAction, groupTagsByChild, publishObservationHandbook, removeFamilyMember, removeGeneratedExport, removePlatformMember, unpublishObservationHandbook, type CardView, type PdfExportKind } from "@observation-handbook/domain";
 import "./styles.css";
 
 type Card = {
@@ -41,12 +41,12 @@ type TemplateGroup = { id: string; paper: "A5"; type: string; templateCount: num
 type TemplateVersion = { id: string; name: string; usageCount: number; status: "已发布" | "已停用" };
 
 const seedCards: Card[] = [
-  { id: "1", date: "08.18", title: "银杏叶的边缘", note: "今天发现最外圈的叶子已经有一点点金黄。", tags: ["银杏", "夏末"], photos: ["photo-1502082553048-f009c37129b9", "photo-1523712999610-f77fbcfc3843"] },
-  { id: "2", date: "08.16", title: "雨后的石阶", note: "水从石缝里流过，像一条很小的河。", tags: ["街道", "雨"], photos: ["photo-1511497584788-876760111969"] },
-  { id: "3", date: "08.12", title: "蜗牛的下午", note: "它把触角伸得很长，背着房子走得不快。", tags: ["小动物"], photos: ["photo-1531219572328-a0171b4448a3"] },
-  { id: "4", date: "08.09", title: "窗台上的影子", note: "下午四点的光，把花盆拉得很长。", tags: ["家里", "光影"], photos: ["photo-1497250681960-ef046c08a56e", "photo-1501004318641-b39e6451bec6"] },
-  { id: "5", date: "08.04", title: "老街的修补", note: "蓝色门旁边多了一块新木板。", tags: ["街道"], photos: ["photo-1470770841072-f978cf4d019e"] },
-  { id: "6", date: "08.01", title: "第一颗落果", note: "树下有一颗小小的果子，摸起来是凉的。", tags: ["银杏"], photos: ["photo-1545239351-1141bd82e8a6"] },
+  { id: "1", handbookId: "ginkgo", date: "08.18", title: "银杏叶的边缘", note: "今天发现最外圈的叶子已经有一点点金黄。", tags: ["银杏", "夏末"], photos: ["photo-1502082553048-f009c37129b9", "photo-1523712999610-f77fbcfc3843"] },
+  { id: "2", handbookId: "street", date: "08.16", title: "雨后的石阶", note: "水从石缝里流过，像一条很小的河。", tags: ["街道", "雨"], photos: ["photo-1511497584788-876760111969"] },
+  { id: "3", handbookId: "rain", date: "08.12", title: "蜗牛的下午", note: "它把触角伸得很长，背着房子走得不快。", tags: ["小动物"], photos: ["photo-1531219572328-a0171b4448a3"] },
+  { id: "4", handbookId: "ginkgo", date: "08.09", title: "窗台上的影子", note: "下午四点的光，把花盆拉得很长。", tags: ["家里", "光影"], photos: ["photo-1497250681960-ef046c08a56e", "photo-1501004318641-b39e6451bec6"] },
+  { id: "5", handbookId: "street", date: "08.04", title: "老街的修补", note: "蓝色门旁边多了一块新木板。", tags: ["街道"], photos: ["photo-1470770841072-f978cf4d019e"] },
+  { id: "6", handbookId: "ginkgo", date: "08.01", title: "第一颗落果", note: "树下有一颗小小的果子，摸起来是凉的。", tags: ["银杏"], photos: ["photo-1545239351-1141bd82e8a6"] },
 ];
 
 const handbooks: Handbook[] = [
@@ -137,12 +137,12 @@ function CardTile({ card }: { card: Card }) {
   </article>;
 }
 
-function HandbookTile({ handbook, onTogglePublication }: { handbook: Handbook; onTogglePublication: (handbook: Handbook) => void }) {
-  return <article className="handbook-tile">
+function HandbookTile({ handbook, onTogglePublication, onOpen }: { handbook: Handbook; onTogglePublication: (handbook: Handbook) => void; onOpen: (handbook: Handbook) => void }) {
+  return <article className="handbook-tile" onClick={() => onOpen(handbook)}>
     <img className="handbook-cover" src={imageUrl(handbook.cover, 720)} alt="" />
     <div className="handbook-overlay"></div>
     <div className="handbook-meta"><span>{handbook.status}</span><time>更新于 {handbook.updatedAt}</time></div>
-    <div className="handbook-copy"><p>{handbook.startedAt}{handbook.completedAt ? ` — ${handbook.completedAt}` : " — 至今"}</p><h2>{handbook.title}</h2><div className="handbook-footer"><span>{handbook.cardCount} 张观察卡片</span><button onClick={() => onTogglePublication(handbook)}>{handbook.publishedAt ? "撤回公开" : "发布公开"} →</button></div></div>
+    <div className="handbook-copy"><p>{handbook.startedAt}{handbook.completedAt ? ` — ${handbook.completedAt}` : " — 至今"}</p><h2>{handbook.title}</h2><div className="handbook-footer"><span>{handbook.cardCount} 张观察卡片</span><button onClick={event => { event.stopPropagation(); onTogglePublication(handbook); }}>{handbook.publishedAt ? "撤回公开" : "发布公开"} →</button></div></div>
     <div className="handbook-intro"><p>{handbook.introduction}</p></div>
   </article>;
 }
@@ -223,6 +223,7 @@ function App() {
   const [isTagDialogOpen, setTagDialogOpen] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [tagNotice, setTagNotice] = useState("");
+  const [selectedHandbookDetail, setSelectedHandbookDetail] = useState<Handbook | null>(null);
   const heading = useMemo(() => activeNav === "今日记录" ? "八月的观察" : activeNav, [activeNav]);
   const isRecordView = activeNav === "今日记录";
   const isPublicSpace = activeNav === "公共空间";
@@ -242,6 +243,7 @@ function App() {
   const activeCardLayout = cardTemplateOptions.some(version => version.name === selectedCardLayout) ? selectedCardLayout : cardTemplateOptions[0]?.name;
   const currentChildId = child === "乐乐" ? "child-lele" : "child-anan";
   const currentTags = groupTagsByChild(tagItems, currentChildId) as ChildTagSummary[];
+  const handbookDetailCards = selectedHandbookDetail ? filterObservationCardsByHandbook(cardItems, selectedHandbookDetail.id) : [];
   const publishedFamilyHandbooks: PublicHandbook[] = handbookItems.filter(handbook => handbook.publishedAt).map(handbook => ({ title: handbook.title, introduction: handbook.introduction, family: "林家档案室", child, publishedAt: handbook.publishedAt!, cardCount: handbook.cardCount, cover: handbook.cover, tag: "家庭观察" }));
   const actionLabel = isRecordView ? "新建记录" : activeNav === "标签管理" ? "新建标签" : activeNav === "导出文件" ? "导出手册" : "新建手册";
   const togglePhoto = (photo: string) => setDraftPhotos(current => current.includes(photo) ? current.filter(item => item !== photo) : current.length < 4 ? [...current, photo] : current);
@@ -298,11 +300,13 @@ function App() {
     if (handbook.publishedAt) {
       unpublishObservationHandbook({ role: "family_admin" });
       setHandbookItems(current => current.map(item => item.id === handbook.id ? { ...item, publishedAt: undefined } : item));
+      setSelectedHandbookDetail(current => current?.id === handbook.id ? { ...current, publishedAt: undefined } : current);
       setHandbookNotice(`已将《${handbook.title}》从公共空间撤回。`);
       return;
     }
     publishObservationHandbook({ role: "family_admin" });
     setHandbookItems(current => current.map(item => item.id === handbook.id ? { ...item, publishedAt: "刚刚" } : item));
+    setSelectedHandbookDetail(current => current?.id === handbook.id ? { ...current, publishedAt: "刚刚" } : current);
     setHandbookNotice(`已将《${handbook.title}》直接发布到公共空间。`);
   };
   const addPlatformMember = () => {
@@ -393,7 +397,7 @@ function App() {
       </section>}
       {isRecordView && view === "timeline" && <section className="timeline-view">{cardItems.map(card => <div className="timeline-row" key={card.id}><time>2026. {card.date}</time><CardTile card={card} /></div>)}</section>}
       {isRecordView && view === "calendar" && <section className="calendar-view"><div className="weekday">一</div><div className="weekday">二</div><div className="weekday">三</div><div className="weekday">四</div><div className="weekday">五</div><div className="weekday">六</div><div className="weekday">日</div>{Array.from({ length: 31 }, (_, i) => <div className="calendar-day" key={i}><b>{i + 1}</b>{cardItems.find(card => Number(card.date.slice(3)) === i + 1) && <span>有记录</span>}</div>)}</section>}
-      {activeNav === "观察手册" && <section className="handbook-view">{handbookNotice && <div className="export-success"><span>✓</span>{handbookNotice}<button aria-label="关闭提示" onClick={() => setHandbookNotice("")}>×</button></div>}<div className="handbook-rule"><p>正在整理</p><i></i><span>按最近更新</span></div><div className="handbook-grid">{handbookItems.map(handbook => <HandbookTile key={handbook.id} handbook={handbook} onTogglePublication={toggleHandbookPublication} />)}</div></section>}
+      {activeNav === "观察手册" && <section className="handbook-view">{handbookNotice && <div className="export-success"><span>✓</span>{handbookNotice}<button aria-label="关闭提示" onClick={() => setHandbookNotice("")}>×</button></div>}{selectedHandbookDetail ? <><div className="admin-rule"><p>观察手册详情</p><i></i><button onClick={() => setSelectedHandbookDetail(null)}>← 返回手册</button></div><article className="handbook-detail"><img src={imageUrl(selectedHandbookDetail.cover, 900)} alt="" /><div><span>{selectedHandbookDetail.publishedAt ? "已公开" : "家庭内"}</span><h2>{selectedHandbookDetail.title}</h2><p>{selectedHandbookDetail.introduction}</p><dl><div><dt>时间</dt><dd>{selectedHandbookDetail.startedAt}{selectedHandbookDetail.completedAt ? ` — ${selectedHandbookDetail.completedAt}` : " — 至今"}</dd></div><div><dt>规格</dt><dd>A5 竖版</dd></div><div><dt>卡片</dt><dd>{handbookDetailCards.length} 张已归入记录</dd></div></dl><button className="new-card" onClick={() => toggleHandbookPublication(selectedHandbookDetail)}>{selectedHandbookDetail.publishedAt ? "撤回公开" : "发布公开"}</button></div></article><div className="handbook-rule detail-rule"><p>收录卡片</p><i></i><span>{handbookDetailCards.length} 张缩略记录</span></div><div className="card-grid">{handbookDetailCards.map(card => <CardTile key={card.id} card={card} />)}</div></> : <><div className="handbook-rule"><p>正在整理</p><i></i><span>按最近更新</span></div><div className="handbook-grid">{handbookItems.map(handbook => <HandbookTile key={handbook.id} handbook={handbook} onTogglePublication={toggleHandbookPublication} onOpen={setSelectedHandbookDetail} />)}</div></>}</section>}
       {activeNav === "标签管理" && <section className="tag-view">{tagNotice && <div className="export-success"><span>✓</span>{tagNotice}<button aria-label="关闭提示" onClick={() => setTagNotice("")}>×</button></div>}<div className="tag-rule"><p>全部标签</p><i></i><span>{currentTags.length} 个主题</span></div><div className="tag-grid">{currentTags.map(tag => <TagTile key={tag.name} tag={tag} />)}</div></section>}
       {activeNav === "导出文件" && <section className="export-view">{exportNotice && <div className="export-success"><span>✓</span>{exportNotice}<button aria-label="关闭提示" onClick={() => setExportNotice("")}>×</button></div>}<div className="export-rule"><p>已生成文件</p><i></i><span>{exportFiles.length} 个文件</span></div><div className="export-list">{exportFiles.map(file => <ExportRow key={file.id} file={file} onDelete={id => setExportFiles(current => removeGeneratedExport(current, id))} onDownload={downloadExport} />)}</div></section>}
       {isPublicSpace && <section className="public-space-view"><div className="public-rule"><p>最新发布</p><i></i><span>全部公开手册</span></div><div className="public-handbook-grid">{[...publishedFamilyHandbooks, ...publicHandbooks].map(handbook => <PublicHandbookTile key={`${handbook.family}-${handbook.title}`} handbook={handbook} />)}</div></section>}

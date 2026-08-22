@@ -18,6 +18,7 @@ type DomainApi = {
     visibility: "family";
   };
   publishObservationHandbook: (input: { role: "family_admin" | "family_reader" }) => { visibility: "public" };
+  filterObservationCardsByHandbook: <T extends { handbookId?: string }>(cards: T[], handbookId: string) => T[];
 };
 
 const api = domain as unknown as DomainApi;
@@ -42,5 +43,10 @@ describe("observation handbooks", () => {
   it("allows the family administrator to publish directly but prevents read-only adults", () => {
     expect(api.publishObservationHandbook({ role: "family_admin" })).toEqual({ visibility: "public" });
     expect(() => api.publishObservationHandbook({ role: "family_reader" })).toThrow("family administrator");
+  });
+
+  it("only returns cards belonging to the selected handbook", () => {
+    const card = { id: "card-1", handbookId: "ginkgo" };
+    expect(api.filterObservationCardsByHandbook([card, { id: "card-2", handbookId: "street" }], "ginkgo")).toEqual([card]);
   });
 });
