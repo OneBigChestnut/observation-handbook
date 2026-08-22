@@ -144,6 +144,13 @@ export function publishObservationHandbook(input: { role: FamilyRole }): { visib
   return { visibility: "public" };
 }
 
+export function unpublishObservationHandbook(input: { role: FamilyRole }): { visibility: "family" } {
+  if (input.role !== "family_admin") {
+    throw new Error("only the family administrator can unpublish a handbook");
+  }
+  return { visibility: "family" };
+}
+
 export function listPublicHandbooks<T extends { visibility: "family" | "public" }>(handbooks: T[]): T[] {
   return handbooks.filter(handbook => handbook.visibility === "public");
 }

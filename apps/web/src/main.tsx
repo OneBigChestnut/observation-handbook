@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { assertCardTemplateMatchesHandbook, createGeneratedExport, createObservationCard, DEFAULT_CARD_VIEW, getCardTemplateCategory, getTemplateRemovalAction, removeFamilyMember, removeGeneratedExport, type CardView, type PdfExportKind } from "@observation-handbook/domain";
+import { assertCardTemplateMatchesHandbook, createGeneratedExport, createObservationCard, DEFAULT_CARD_VIEW, getCardTemplateCategory, getTemplateRemovalAction, publishObservationHandbook, removeFamilyMember, removeGeneratedExport, unpublishObservationHandbook, type CardView, type PdfExportKind } from "@observation-handbook/domain";
 import "./styles.css";
 
 type Card = {
@@ -23,6 +23,7 @@ type Handbook = {
   cardCount: number;
   cover: string;
   status: "持续观察" | "已完成";
+  publishedAt?: string;
   paperSize?: "A5";
   coverTemplate?: string;
   backTemplate?: string;
@@ -134,12 +135,12 @@ function CardTile({ card }: { card: Card }) {
   </article>;
 }
 
-function HandbookTile({ handbook }: { handbook: Handbook }) {
+function HandbookTile({ handbook, onTogglePublication }: { handbook: Handbook; onTogglePublication: (handbook: Handbook) => void }) {
   return <article className="handbook-tile">
     <img className="handbook-cover" src={imageUrl(handbook.cover, 720)} alt="" />
     <div className="handbook-overlay"></div>
     <div className="handbook-meta"><span>{handbook.status}</span><time>更新于 {handbook.updatedAt}</time></div>
-    <div className="handbook-copy"><p>{handbook.startedAt}{handbook.completedAt ? ` — ${handbook.completedAt}` : " — 至今"}</p><h2>{handbook.title}</h2><div className="handbook-footer"><span>{handbook.cardCount} 张观察卡片</span><i>查看手册 →</i></div></div>
+    <div className="handbook-copy"><p>{handbook.startedAt}{handbook.completedAt ? ` — ${handbook.completedAt}` : " — 至今"}</p><h2>{handbook.title}</h2><div className="handbook-footer"><span>{handbook.cardCount} 张观察卡片</span><button onClick={() => onTogglePublication(handbook)}>{handbook.publishedAt ? "撤回公开" : "发布公开"} →</button></div></div>
     <div className="handbook-intro"><p>{handbook.introduction}</p></div>
   </article>;
 }
@@ -211,6 +212,7 @@ function App() {
   const [selectedFamilyMember, setSelectedFamilyMember] = useState<FamilyMemberSummary | null>(null);
   const [newMemberName, setNewMemberName] = useState("");
   const [memberNotice, setMemberNotice] = useState("");
+  const [handbookNotice, setHandbookNotice] = useState("");
   const heading = useMemo(() => activeNav === "今日记录" ? "八月的观察" : activeNav, [activeNav]);
   const isRecordView = activeNav === "今日记录";
   const isPublicSpace = activeNav === "公共空间";
@@ -228,6 +230,7 @@ function App() {
   const selectedCardTemplateGroup = templateGroupsWithVersions.find(group => group.paper === selectedCardPaperSize && group.type === `卡片 · ${draftPhotos.length} 张照片`);
   const cardTemplateOptions = selectedCardTemplateGroup ? (templateVersions[selectedCardTemplateGroup.id] ?? []).filter(version => version.status === "已发布") : [];
   const activeCardLayout = cardTemplateOptions.some(version => version.name === selectedCardLayout) ? selectedCardLayout : cardTemplateOptions[0]?.name;
+  const publishedFamilyHandbooks: PublicHandbook[] = handbookItems.filter(handbook => handbook.publishedAt).map(handbook => ({ title: handbook.title, introduction: handbook.introduction, family: "林家档案室", child, publishedAt: handbook.publishedAt!, cardCount: handbook.cardCount, cover: handbook.cover, tag: "家庭观察" }));
   const actionLabel = isRecordView ? "新建记录" : activeNav === "标签管理" ? "新建标签" : activeNav === "导出文件" ? "导出手册" : "新建手册";
   const togglePhoto = (photo: string) => setDraftPhotos(current => current.includes(photo) ? current.filter(item => item !== photo) : current.length < 4 ? [...current, photo] : current);
   const toggleTag = (tag: string) => setDraftTags(current => current.includes(tag) ? current.filter(item => item !== tag) : [...current, tag]);
@@ -277,6 +280,17 @@ function App() {
     const remaining = removeFamilyMember(domainMembers, member.id);
     setFamilyMemberItems(current => current.filter(item => remaining.some(next => next.accountId === item.id)));
     setMemberNotice(`已移除只读成员 ${member.name}。`); setSelectedFamilyMember(null);
+  };
+  const toggleHandbookPublication = (handbook: Handbook) => {
+    if (handbook.publishedAt) {
+      unpublishObservationHandbook({ role: "family_admin" });
+      setHandbookItems(current => current.map(item => item.id === handbook.id ? { ...item, publishedAt: undefined } : item));
+      setHandbookNotice(`已将《${handbook.title}》从公共空间撤回。`);
+      return;
+    }
+    publishObservationHandbook({ role: "family_admin" });
+    setHandbookItems(current => current.map(item => item.id === handbook.id ? { ...item, publishedAt: "刚刚" } : item));
+    setHandbookNotice(`已将《${handbook.title}》直接发布到公共空间。`);
   };
   const generateExport = () => {
     const handbook = handbookItems.find(item => item.id === selectedHandbookId) ?? handbookItems[0];
@@ -338,10 +352,10 @@ function App() {
       </section>}
       {isRecordView && view === "timeline" && <section className="timeline-view">{cardItems.map(card => <div className="timeline-row" key={card.id}><time>2026. {card.date}</time><CardTile card={card} /></div>)}</section>}
       {isRecordView && view === "calendar" && <section className="calendar-view"><div className="weekday">一</div><div className="weekday">二</div><div className="weekday">三</div><div className="weekday">四</div><div className="weekday">五</div><div className="weekday">六</div><div className="weekday">日</div>{Array.from({ length: 31 }, (_, i) => <div className="calendar-day" key={i}><b>{i + 1}</b>{cardItems.find(card => Number(card.date.slice(3)) === i + 1) && <span>有记录</span>}</div>)}</section>}
-      {activeNav === "观察手册" && <section className="handbook-view"><div className="handbook-rule"><p>正在整理</p><i></i><span>按最近更新</span></div><div className="handbook-grid">{handbookItems.map(handbook => <HandbookTile key={handbook.id} handbook={handbook} />)}</div></section>}
+      {activeNav === "观察手册" && <section className="handbook-view">{handbookNotice && <div className="export-success"><span>✓</span>{handbookNotice}<button aria-label="关闭提示" onClick={() => setHandbookNotice("")}>×</button></div>}<div className="handbook-rule"><p>正在整理</p><i></i><span>按最近更新</span></div><div className="handbook-grid">{handbookItems.map(handbook => <HandbookTile key={handbook.id} handbook={handbook} onTogglePublication={toggleHandbookPublication} />)}</div></section>}
       {activeNav === "标签管理" && <section className="tag-view"><div className="tag-rule"><p>全部标签</p><i></i><span>{tags.length} 个主题</span></div><div className="tag-grid">{tags.map(tag => <TagTile key={tag.name} tag={tag} />)}</div></section>}
       {activeNav === "导出文件" && <section className="export-view">{exportNotice && <div className="export-success"><span>✓</span>{exportNotice}<button aria-label="关闭提示" onClick={() => setExportNotice("")}>×</button></div>}<div className="export-rule"><p>已生成文件</p><i></i><span>{exportFiles.length} 个文件</span></div><div className="export-list">{exportFiles.map(file => <ExportRow key={file.id} file={file} onDelete={id => setExportFiles(current => removeGeneratedExport(current, id))} onDownload={downloadExport} />)}</div></section>}
-      {isPublicSpace && <section className="public-space-view"><div className="public-rule"><p>最新发布</p><i></i><span>全部公开手册</span></div><div className="public-handbook-grid">{publicHandbooks.map(handbook => <PublicHandbookTile key={handbook.title} handbook={handbook} />)}</div></section>}
+      {isPublicSpace && <section className="public-space-view"><div className="public-rule"><p>最新发布</p><i></i><span>全部公开手册</span></div><div className="public-handbook-grid">{[...publishedFamilyHandbooks, ...publicHandbooks].map(handbook => <PublicHandbookTile key={`${handbook.family}-${handbook.title}`} handbook={handbook} />)}</div></section>}
       {isFamilyMembers && <section className="members-view">{memberNotice && <div className="export-success"><span>✓</span>{memberNotice}<button aria-label="关闭提示" onClick={() => setMemberNotice("")}>×</button></div>}<div className="members-note"><b>成员权限</b><span>管理员可管理家庭、小朋友与发布；只读成员仅能查看。</span></div><div className="members-rule"><p>家庭成员</p><i></i><span>{familyMemberItems.length} 位成人</span><button onClick={() => setMemberDialogOpen(true)}>＋ 添加成员</button></div><div className="members-list">{familyMemberItems.map(member => <FamilyMemberRow key={member.id} member={member} onManage={setSelectedFamilyMember} />)}</div></section>}
       {isAdminMembers && <section className="admin-view"><div className="admin-rule"><p>后台成员</p><i></i><button>＋ 添加成员</button></div><div className="platform-member-list">{platformMembers.map(member => <PlatformMemberRow key={member.email} member={member} />)}</div><div className="admin-rule spaced"><p>家庭账号</p><i></i><button>搜索家庭</button></div><div className="family-account-list">{familyAccounts.map(account => <FamilyAccountRow key={account.family} account={account} />)}</div></section>}
       {isAdminTemplates && <section className="admin-view template-management">{templateNotice && <div className="export-success"><span>✓</span>{templateNotice}<button aria-label="关闭提示" onClick={() => setTemplateNotice("")}>×</button></div>}<div className="template-table-wrap"><table><thead><tr><th>纸张大小</th><th>模板类型</th><th>模板套数</th><th>方向</th></tr></thead><tbody>{templateGroupsWithVersions.map(group => <tr key={group.id} className={selectedTemplateGroup.id === group.id ? "selected" : ""} onClick={() => setSelectedTemplateGroupId(group.id)}><td>{group.paper}</td><td>{group.type}</td><td><b>{group.templateCount}</b> 套</td><td>竖版</td></tr>)}</tbody></table></div><div className="admin-rule spaced"><p>{selectedTemplateGroup.paper} 竖版 · {selectedTemplateGroup.type}</p><i></i><span>{selectedTemplateGroup.templateCount} 套模板</span><button onClick={addTemplateVersion}>＋ 新建模板</button></div><div className="template-gallery">{selectedTemplateVersions.map((version, index) => <article key={version.id} className={`template-thumbnail photos-${selectedTemplateGroup.type.includes("卡片") ? selectedTemplateGroup.type.match(/[1-4]/)?.[0] : "cover"}`}><div className="thumbnail-paper"><span>{selectedTemplateGroup.paper}</span><b>{selectedTemplateGroup.type.includes("封面") ? "观察手册" : selectedTemplateGroup.type.includes("封底") ? "档案终页" : `版式 ${String.fromCharCode(65 + index)}`}</b><i></i></div><footer><strong>{version.name}</strong><span className={version.status === "已停用" ? "template-retired" : "template-version-status"}>{version.status === "已停用" ? "已停用" : version.usageCount > 0 ? `${version.usageCount} 次使用` : "未使用"}</span><button onClick={() => openTemplateEditor(version)}>编辑</button><button className="delete-export" onClick={() => removeTemplateVersion(version)}>{version.usageCount > 0 ? "停用" : "删除"}</button></footer></article>)}</div></section>}
