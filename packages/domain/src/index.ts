@@ -94,6 +94,11 @@ export function assignPlatformRole<T extends { accountId: string; role: "super_a
   return members.map(item => item.accountId === accountId ? { ...item, role } : item);
 }
 
+export function getFamilyAccountPopulation(input: { readers: number; children: number }): { adults: number; children: number } {
+  if (!Number.isInteger(input.readers) || input.readers < 0 || !Number.isInteger(input.children) || input.children < 0) throw new Error("family counts must be non-negative integers");
+  return { adults: input.readers + 1, children: input.children };
+}
+
 export function assignFamilyRole(members: FamilyMember[], accountId: string, role: FamilyRole): FamilyMember[] {
   const next = members.filter(member => member.accountId !== accountId);
   if (role === "family_admin" && next.some(member => member.role === "family_admin")) {

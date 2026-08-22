@@ -5,6 +5,7 @@ type DomainApi = {
   assertSuperAdminAccess: (role: "family_admin" | "family_reader" | "super_admin") => void;
   removePlatformMember: (members: Array<{ accountId: string; role: "super_admin" | "operations_admin" }>, accountId: string) => Array<{ accountId: string; role: "super_admin" | "operations_admin" }>;
   assignPlatformRole: (members: Array<{ accountId: string; role: "super_admin" | "operations_admin" }>, accountId: string, role: "super_admin" | "operations_admin") => Array<{ accountId: string; role: "super_admin" | "operations_admin" }>;
+  getFamilyAccountPopulation: (input: { readers: number; children: number }) => { adults: number; children: number };
 };
 
 const api = domain as unknown as DomainApi;
@@ -24,5 +25,9 @@ describe("admin center access", () => {
 
   it("does not demote the final super administrator", () => {
     expect(() => api.assignPlatformRole([{ accountId: "s1", role: "super_admin" }], "s1", "operations_admin")).toThrow("one super administrator");
+  });
+
+  it("counts a family administrator together with its read-only adults", () => {
+    expect(api.getFamilyAccountPopulation({ readers: 2, children: 3 })).toEqual({ adults: 3, children: 3 });
   });
 });
