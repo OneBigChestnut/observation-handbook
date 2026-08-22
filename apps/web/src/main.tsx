@@ -31,6 +31,7 @@ type FamilyMemberSummary = { name: string; initial: string; role: "家庭管理�
 type AdminTemplate = { name: string; version: string; usage: number; status: "已发布" | "已停用"; updatedAt: string };
 type PlatformMember = { name: string; email: string; role: "超级管理员" | "运营管理员"; initial: string };
 type FamilyAccount = { family: string; administrator: string; readers: number; children: number; updatedAt: string };
+type TemplateGroup = { id: string; paper: "A4" | "A5"; type: string; templateCount: number };
 
 const seedCards: Card[] = [
   { id: "1", date: "08.18", title: "银杏叶的边缘", note: "今天发现最外圈的叶子已经有一点点金黄。", tags: ["银杏", "夏末"], photos: ["photo-1502082553048-f009c37129b9", "photo-1523712999610-f77fbcfc3843"] },
@@ -90,6 +91,21 @@ const familyAccounts: FamilyAccount[] = [
   { family: "林家档案室", administrator: "林然", readers: 2, children: 2, updatedAt: "今天 10:42" },
   { family: "王家观察室", administrator: "王珂", readers: 1, children: 1, updatedAt: "昨天 18:16" },
   { family: "陈家手册", administrator: "陈雪", readers: 3, children: 2, updatedAt: "08.15" },
+];
+
+const templateGroups: TemplateGroup[] = [
+  { id: "a4-cover", paper: "A4", type: "封面", templateCount: 3 },
+  { id: "a4-back", paper: "A4", type: "封底", templateCount: 2 },
+  { id: "a4-card-1", paper: "A4", type: "卡片 · 1 张照片", templateCount: 4 },
+  { id: "a4-card-2", paper: "A4", type: "卡片 · 2 张照片", templateCount: 5 },
+  { id: "a4-card-3", paper: "A4", type: "卡片 · 3 张照片", templateCount: 4 },
+  { id: "a4-card-4", paper: "A4", type: "卡片 · 4 张照片", templateCount: 3 },
+  { id: "a5-cover", paper: "A5", type: "封面", templateCount: 2 },
+  { id: "a5-back", paper: "A5", type: "封底", templateCount: 2 },
+  { id: "a5-card-1", paper: "A5", type: "卡片 · 1 张照片", templateCount: 3 },
+  { id: "a5-card-2", paper: "A5", type: "卡片 · 2 张照片", templateCount: 4 },
+  { id: "a5-card-3", paper: "A5", type: "卡片 · 3 张照片", templateCount: 4 },
+  { id: "a5-card-4", paper: "A5", type: "卡片 · 4 张照片", templateCount: 3 },
 ];
 
 const photoChoices = ["photo-1502082553048-f009c37129b9", "photo-1511497584788-876760111969", "photo-1531219572328-a0171b4448a3", "photo-1497250681960-ef046c08a56e"];
@@ -167,6 +183,7 @@ function App() {
   const [isHandbookDialogOpen, setHandbookDialogOpen] = useState(false);
   const [selectedCoverTemplate, setSelectedCoverTemplate] = useState("A4 竖版 · 自然封面");
   const [selectedBackTemplate, setSelectedBackTemplate] = useState("A4 竖版 · 标准封底");
+  const [selectedTemplateGroupId, setSelectedTemplateGroupId] = useState("a5-card-3");
   const [exportFiles, setExportFiles] = useState(seedExports);
   const [isExportDialogOpen, setExportDialogOpen] = useState(false);
   const [selectedHandbookId, setSelectedHandbookId] = useState(handbooks[0].id);
@@ -181,6 +198,7 @@ function App() {
   const isAdminTemplates = activeNav === "模板管理";
   const isAdminLogs = activeNav === "日志查看";
   const isAdminCenter = isAdminMembers || isAdminTemplates || isAdminLogs;
+  const selectedTemplateGroup = templateGroups.find(group => group.id === selectedTemplateGroupId) ?? templateGroups[0];
   const actionLabel = isRecordView ? "新建记录" : activeNav === "标签管理" ? "新建标签" : activeNav === "导出文件" ? "导出手册" : "新建手册";
   const togglePhoto = (photo: string) => setDraftPhotos(current => current.includes(photo) ? current.filter(item => item !== photo) : current.length < 4 ? [...current, photo] : current);
   const toggleTag = (tag: string) => setDraftTags(current => current.includes(tag) ? current.filter(item => item !== tag) : [...current, tag]);
@@ -255,7 +273,7 @@ function App() {
       {isPublicSpace && <section className="public-space-view"><div className="public-rule"><p>最新发布</p><i></i><span>全部公开手册</span></div><div className="public-handbook-grid">{publicHandbooks.map(handbook => <PublicHandbookTile key={handbook.title} handbook={handbook} />)}</div></section>}
       {isFamilyMembers && <section className="members-view"><div className="members-note"><b>成员权限</b><span>管理员可管理家庭、小朋友与发布；只读成员仅能查看。</span></div><div className="members-rule"><p>家庭成员</p><i></i><span>{familyMembers.length} 位成人</span></div><div className="members-list">{familyMembers.map(member => <FamilyMemberRow key={member.name} member={member} />)}</div></section>}
       {isAdminMembers && <section className="admin-view"><div className="admin-rule"><p>后台成员</p><i></i><button>＋ 添加成员</button></div><div className="platform-member-list">{platformMembers.map(member => <PlatformMemberRow key={member.email} member={member} />)}</div><div className="admin-rule spaced"><p>家庭账号</p><i></i><button>搜索家庭</button></div><div className="family-account-list">{familyAccounts.map(account => <FamilyAccountRow key={account.family} account={account} />)}</div></section>}
-      {isAdminTemplates && <section className="admin-view"><div className="admin-rule"><p>A4 竖版 · 封面模板</p><i></i><button>＋ 新建封面</button></div><div className="admin-template-list">{adminTemplates.slice(0, 2).map(template => <AdminTemplateRow key={`cover-${template.version}`} template={{ ...template, name: `${template.name} · 封面` }} />)}</div><div className="admin-rule spaced"><p>A4 竖版 · 封底模板</p><i></i><button>＋ 新建封底</button></div><div className="admin-template-list">{adminTemplates.slice(0, 1).map(template => <AdminTemplateRow key={`back-${template.version}`} template={{ ...template, name: `${template.name} · 封底` }} />)}</div>{[1, 2, 3, 4].map(count => <div key={count}><div className="admin-rule spaced"><p>A4 竖版 · {count} 张照片卡片模板</p><i></i><button>＋ 新建版式</button></div><div className="admin-template-list">{adminTemplates.slice(0, count === 1 ? 1 : 2).map(template => <AdminTemplateRow key={`card-${count}-${template.version}`} template={{ ...template, name: `${count} 张照片 · ${template.name}` }} />)}</div></div>)}</section>}
+      {isAdminTemplates && <section className="admin-view template-management"><div className="template-table-wrap"><table><thead><tr><th>纸张大小</th><th>模板类型</th><th>模板套数</th><th>方向</th></tr></thead><tbody>{templateGroups.map(group => <tr key={group.id} className={selectedTemplateGroup.id === group.id ? "selected" : ""} onClick={() => setSelectedTemplateGroupId(group.id)}><td>{group.paper}</td><td>{group.type}</td><td><b>{group.templateCount}</b> 套</td><td>竖版</td></tr>)}</tbody></table></div><div className="admin-rule spaced"><p>{selectedTemplateGroup.paper} 竖版 · {selectedTemplateGroup.type}</p><i></i><span>{selectedTemplateGroup.templateCount} 套模板</span><button>＋ 新建模板</button></div><div className="template-gallery">{Array.from({ length: selectedTemplateGroup.templateCount }, (_, index) => <article key={index} className={`template-thumbnail photos-${selectedTemplateGroup.type.includes("卡片") ? selectedTemplateGroup.type.match(/[1-4]/)?.[0] : "cover"}`}><div className="thumbnail-paper"><span>{selectedTemplateGroup.paper}</span><b>{selectedTemplateGroup.type.includes("封面") ? "观察手册" : selectedTemplateGroup.type.includes("封底") ? "档案终页" : `版式 ${String.fromCharCode(65 + index)}`}</b><i></i></div><footer><strong>{selectedTemplateGroup.type.includes("卡片") ? `卡片版式 ${String.fromCharCode(65 + index)}` : `${selectedTemplateGroup.type} ${String.fromCharCode(65 + index)}`}</strong><button>编辑</button><button className="delete-export">删除</button></footer></article>)}</div></section>}
       {isAdminLogs && <section className="admin-view"><div className="admin-rule"><p>操作日志</p><i></i><button>筛选 ▾</button></div><div className="admin-template-list"><div className="admin-log"><b>10:42</b><span>林然发布《四季里的银杏》至公共空间</span><button>详情 →</button></div><div className="admin-log"><b>09:16</b><span>周宁创建模板「城市漫游 · 横向册 v1.1」</span><button>详情 →</button></div><div className="admin-log"><b>昨天</b><span>陈雪将模板「自然观察 · 初版」设置为停用</span><button>详情 →</button></div></div></section>}
       {isComposerOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => setComposerOpen(false)}><form className="card-composer" onSubmit={(event) => { event.preventDefault(); saveCard(); }} onMouseDown={event => event.stopPropagation()}>
         <header><div><p>为 {child} 新建</p><h2>观察卡片</h2></div><button type="button" aria-label="关闭新建卡片" onClick={() => setComposerOpen(false)}>×</button></header>
