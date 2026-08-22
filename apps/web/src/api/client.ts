@@ -21,6 +21,14 @@ export type WorkspaceFamily = {
 
 export type Workspace = { account: WorkspaceAccount; families: WorkspaceFamily[] };
 
+export type ObservationCardSummary = {
+  id: string;
+  observedAt: string;
+  text: string;
+  photos: { id: string; thumbnailUrl: string }[];
+  tags: { id: string; name: string; color: string }[];
+};
+
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
@@ -38,6 +46,7 @@ export const apiClient = {
   me: () => request<{ accountId: string; username: string; platformRole: WorkspaceAccount["platformRole"]; memberships: { familyId: string; role: WorkspaceFamily["role"] }[] }>("/api/auth/me"),
   login: (username: string, password: string) => request("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }),
   currentFamilies: () => request<{ families: WorkspaceFamily[] }>("/api/families/current"),
+  cards: (childId: string) => request<{ cards: ObservationCardSummary[] }>(`/api/children/${childId}/cards`).then(response => response.cards),
   workspace: async (): Promise<Workspace> => {
     const [session, familyResponse] = await Promise.all([apiClient.me(), apiClient.currentFamilies()]);
     return { account: { id: session.accountId, username: session.username, platformRole: session.platformRole }, families: familyResponse.families };
