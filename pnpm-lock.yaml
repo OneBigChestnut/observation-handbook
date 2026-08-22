@@ -26,6 +26,9 @@ importers:
       '@fastify/cookie':
         specifier: ^11.1.2
         version: 11.1.2
+      '@observation-handbook/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       better-sqlite3:
         specifier: ^12.4.1
         version: 12.11.1

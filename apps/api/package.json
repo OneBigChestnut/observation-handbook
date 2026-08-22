@@ -11,6 +11,7 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
+    "@observation-handbook/domain": "workspace:*",
     "@fastify/cookie": "^11.1.2",
     "better-sqlite3": "^12.4.1",
     "drizzle-orm": "^0.44.7",
