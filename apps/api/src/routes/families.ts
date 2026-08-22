@@ -1,15 +1,28 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
 import { eq } from "drizzle-orm";
-import { requireFamilyAdmin, requireFamilyRead } from "@observation-handbook/domain";
+import { requireChildAccess, requireFamilyAdmin, requireFamilyRead } from "@observation-handbook/domain";
 import { getActorFromToken } from "../auth.js";
 import type { ApiConfig } from "../config.js";
 import type { AppDatabase } from "../db/client.js";
-import { auditLogs, children, families, familyMemberships } from "../db/schema.js";
+import { accounts, auditLogs, children, families, familyMemberships } from "../db/schema.js";
 
 type FamilyRouteOptions = { database: AppDatabase; config: ApiConfig };
 
 export const registerFamilyRoutes: FastifyPluginAsync<FamilyRouteOptions> = async (app, options) => {
+  app.get<{ Params: { childId: string } }>("/api/children/:childId", async (request, reply) => {
+    const actor = await getActor(options, request.cookies[options.config.sessionCookie.name]);
+    if (!actor) return reply.code(401).send({ code: "AUTH_REQUIRED" });
+    const child = await options.database.query.children.findFirst({ where: eq(children.id, request.params.childId) });
+    if (!child) return reply.code(404).send({ code: "CHILD_NOT_FOUND" });
+    try {
+      requireChildAccess(actor, child);
+    } catch (error) {
+      return reply.code(403).send({ code: error instanceof Error ? error.message : "FAMILY_ACCESS_DENIED" });
+    }
+    return { child: { id: child.id, name: child.name, familyId: child.familyId } };
+  });
+
   app.get("/api/families/current", async (request, reply) => {
     const actor = await getActor(options, request.cookies[options.config.sessionCookie.name]);
     if (!actor) return reply.code(401).send({ code: "AUTH_REQUIRED" });
@@ -42,6 +55,24 @@ export const registerFamilyRoutes: FastifyPluginAsync<FamilyRouteOptions> = asyn
     await options.database.insert(children).values(child);
     await options.database.insert(auditLogs).values({ id: randomUUID(), actorId: actor.accountId, familyId: child.familyId, action: "child.created", targetType: "child", targetId: child.id, metadata: JSON.stringify({ name: child.name }), createdAt: new Date() });
     return reply.code(201).send({ child: { id: child.id, name: child.name } });
+  });
+
+  app.post<{ Params: { familyId: string }; Body: { accountId?: string } }>("/api/families/:familyId/members", async (request, reply) => {
+    const actor = await getActor(options, request.cookies[options.config.sessionCookie.name]);
+    if (!actor) return reply.code(401).send({ code: "AUTH_REQUIRED" });
+    try {
+      requireFamilyAdmin(actor, request.params.familyId);
+    } catch (error) {
+      return reply.code(403).send({ code: error instanceof Error ? error.message : "FAMILY_ADMIN_REQUIRED" });
+    }
+    const accountId = request.body.accountId;
+    if (!accountId) return reply.code(400).send({ code: "ACCOUNT_ID_REQUIRED" });
+    const account = await options.database.query.accounts.findFirst({ where: eq(accounts.id, accountId) });
+    if (!account) return reply.code(404).send({ code: "ACCOUNT_NOT_FOUND" });
+
+    await options.database.insert(familyMemberships).values({ accountId, familyId: request.params.familyId, role: "reader" }).onConflictDoNothing();
+    await options.database.insert(auditLogs).values({ id: randomUUID(), actorId: actor.accountId, familyId: request.params.familyId, action: "family_member.added", targetType: "family_membership", targetId: accountId, metadata: JSON.stringify({ role: "reader" }), createdAt: new Date() });
+    return reply.code(201).send({ member: { accountId, role: "reader" } });
   });
 };
 
