@@ -4,6 +4,23 @@ export class ApiError extends Error {
   }
 }
 
+export type WorkspaceAccount = {
+  id: string;
+  username: string;
+  platformRole: "super_admin" | "operations_admin" | null;
+};
+
+export type WorkspaceChild = { id: string; name: string };
+
+export type WorkspaceFamily = {
+  id: string;
+  name: string;
+  role: "admin" | "reader";
+  children: WorkspaceChild[];
+};
+
+export type Workspace = { account: WorkspaceAccount; families: WorkspaceFamily[] };
+
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
@@ -18,6 +35,11 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const apiClient = {
-  me: () => request("/api/auth/me"),
+  me: () => request<{ accountId: string; username: string; platformRole: WorkspaceAccount["platformRole"]; memberships: { familyId: string; role: WorkspaceFamily["role"] }[] }>("/api/auth/me"),
   login: (username: string, password: string) => request("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }),
+  currentFamilies: () => request<{ families: WorkspaceFamily[] }>("/api/families/current"),
+  workspace: async (): Promise<Workspace> => {
+    const [session, familyResponse] = await Promise.all([apiClient.me(), apiClient.currentFamilies()]);
+    return { account: { id: session.accountId, username: session.username, platformRole: session.platformRole }, families: familyResponse.families };
+  },
 };

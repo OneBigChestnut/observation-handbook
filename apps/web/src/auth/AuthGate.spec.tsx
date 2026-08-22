@@ -18,6 +18,17 @@ describe("AuthGate", () => {
     expect(await screen.findByRole("heading", { name: "登录观察手册" })).toBeInTheDocument();
     expect(screen.queryByText("private application")).not.toBeInTheDocument();
   });
+
+  it("passes the signed-in account and current family's children into the workspace", async () => {
+    const loadWorkspace = vi.fn().mockResolvedValue({
+      account: { id: "account-lin", username: "lin", platformRole: "super_admin" },
+      families: [{ id: "family-lin", name: "林家档案室", role: "admin", children: [{ id: "child-lele", name: "乐乐" }] }],
+    });
+
+    render(<AuthGate loadWorkspace={loadWorkspace}>{workspace => <div>{workspace.account.username} · {workspace.families[0].children[0].name}</div>}</AuthGate>);
+
+    expect(await screen.findByText("lin · 乐乐")).toBeInTheDocument();
+  });
 });
 
 describe("LoginPage", () => {

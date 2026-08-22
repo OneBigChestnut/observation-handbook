@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { assertCardTemplateMatchesHandbook, assignPlatformRole, createGeneratedExport, createObservationCard, createObservationTag, DEFAULT_CARD_VIEW, filterObservationCardsByHandbook, getCardTemplateCategory, getFamilyAccountPopulation, getPdfExportSpec, getTemplateRemovalAction, groupTagsByChild, publishObservationHandbook, removeFamilyMember, removeGeneratedExport, removePlatformMember, unpublishObservationHandbook, type CardView, type PdfExportKind } from "@observation-handbook/domain";
 import { AuthGate } from "./auth/AuthGate.js";
+import type { Workspace } from "./api/client.js";
 import "./styles.css";
 
 type Card = {
@@ -181,10 +182,16 @@ function FamilyAccountRow({ account, onManage }: { account: FamilyAccount; onMan
   return <article className="family-account-row"><div><h2>{account.family}</h2><p>最近活动 · {account.updatedAt}</p></div><span><b>{account.administrator}</b> · 管理员</span><span>{account.readers} 位只读成人</span><span>{account.children} 位小朋友</span><button onClick={() => onManage(account)}>管理账号 →</button></article>;
 }
 
-function App() {
+function App({ workspace }: { workspace: Workspace }) {
   const [activeNav, setActiveNav] = useState("今日记录");
   const [view, setView] = useState<CardView>(DEFAULT_CARD_VIEW);
-  const [child, setChild] = useState("乐乐");
+  const currentFamily = workspace.families[0];
+  const familyChildren = currentFamily?.children ?? [];
+  const [currentChildId, setCurrentChildId] = useState(() => familyChildren[0]?.id ?? "");
+  const selectedChild = familyChildren.find(item => item.id === currentChildId) ?? familyChildren[0];
+  const child = selectedChild?.name ?? "未设置小朋友";
+  const familyName = currentFamily?.name ?? "未加入家庭";
+  const canEditFamily = currentFamily?.role === "admin";
   const [cardItems, setCardItems] = useState(seedCards);
   const [isComposerOpen, setComposerOpen] = useState(false);
   const [draftText, setDraftText] = useState("");
@@ -235,7 +242,7 @@ function App() {
   const isRecordView = activeNav === "今日记录";
   const isPublicSpace = activeNav === "公共空间";
   const isFamilyMembers = activeNav === "家庭成员";
-  const isSuperAdmin = true;
+  const isSuperAdmin = workspace.account.platformRole === "super_admin";
   const isAdminMembers = activeNav === "后台成员管理";
   const isAdminTemplates = activeNav === "模板管理";
   const isAdminLogs = activeNav === "日志查看";
@@ -248,11 +255,10 @@ function App() {
   const selectedCardTemplateGroup = templateGroupsWithVersions.find(group => group.paper === selectedCardPaperSize && group.type === `卡片 · ${draftPhotos.length} 张照片`);
   const cardTemplateOptions = selectedCardTemplateGroup ? (templateVersions[selectedCardTemplateGroup.id] ?? []).filter(version => version.status === "已发布") : [];
   const activeCardLayout = cardTemplateOptions.some(version => version.name === selectedCardLayout) ? selectedCardLayout : cardTemplateOptions[0]?.name;
-  const currentChildId = child === "乐乐" ? "child-lele" : "child-anan";
   const currentTags = groupTagsByChild(tagItems, currentChildId) as ChildTagSummary[];
   const handbookDetailCards = selectedHandbookDetail ? filterObservationCardsByHandbook(cardItems, selectedHandbookDetail.id) : [];
   const publicPreviewCards = selectedPublicHandbook?.sourceHandbookId ? filterObservationCardsByHandbook(cardItems, selectedPublicHandbook.sourceHandbookId) : seedCards.slice(0, 3);
-  const publishedFamilyHandbooks: PublicHandbook[] = handbookItems.filter(handbook => handbook.publishedAt).map(handbook => ({ title: handbook.title, introduction: handbook.introduction, family: "林家档案室", child, publishedAt: handbook.publishedAt!, cardCount: handbook.cardCount, cover: handbook.cover, tag: "家庭观察", sourceHandbookId: handbook.id }));
+  const publishedFamilyHandbooks: PublicHandbook[] = handbookItems.filter(handbook => handbook.publishedAt).map(handbook => ({ title: handbook.title, introduction: handbook.introduction, family: familyName, child, publishedAt: handbook.publishedAt!, cardCount: handbook.cardCount, cover: handbook.cover, tag: "家庭观察", sourceHandbookId: handbook.id }));
   const actionLabel = isRecordView ? "新建记录" : activeNav === "标签管理" ? "新建标签" : activeNav === "导出文件" ? "导出手册" : "新建手册";
   const togglePhoto = (photo: string) => setDraftPhotos(current => current.includes(photo) ? current.filter(item => item !== photo) : current.length < 4 ? [...current, photo] : current);
   const toggleTag = (tag: string) => setDraftTags(current => current.includes(tag) ? current.filter(item => item !== tag) : [...current, tag]);
@@ -380,7 +386,7 @@ function App() {
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><span className="brand-mark">O</span><span>观察手册</span></div>
-      <div className="family-label">林家档案室 <span>⌄</span></div>
+      <div className="family-label">{familyName} <span>⌄</span></div>
       <nav aria-label="主导航">
         {["今日记录", "观察手册", "标签管理", "导出文件", "家庭成员"].map(item => <button key={item} className={activeNav === item ? "active" : ""} onClick={() => setActiveNav(item)}>{item}</button>)}
       </nav>
@@ -390,11 +396,11 @@ function App() {
       </div>
       {isSuperAdmin && <div className="nav-section admin-nav"><p>后台中心</p><button className={isAdminMembers ? "active" : ""} onClick={() => setActiveNav("后台成员管理")}>成员管理</button><button className={isAdminTemplates ? "active" : ""} onClick={() => setActiveNav("模板管理")}>模板管理</button><button className={isAdminLogs ? "active" : ""} onClick={() => setActiveNav("日志查看")}>日志查看</button></div>}
       <div className="sidebar-bottom">
-        <button className="child-switcher" onClick={() => setChild(child === "乐乐" ? "安安" : "乐乐")}>
+        <button className="child-switcher" disabled={familyChildren.length < 2} onClick={() => { const index = familyChildren.findIndex(item => item.id === currentChildId); setCurrentChildId(familyChildren[(index + 1) % familyChildren.length]?.id ?? currentChildId); }}>
           <span className="avatar">{child.slice(0, 1)}</span>
           <span><b>{child}</b><small>切换小朋友</small></span><i>⌄</i>
         </button>
-        <button className="account"><span className="account-avatar">林</span><span>林然<small>家庭管理员</small></span></button>
+        <button className="account"><span className="account-avatar">{workspace.account.username.slice(0, 1)}</span><span>{workspace.account.username}<small>{canEditFamily ? "家庭管理员" : "只读成员"}</small></span></button>
       </div>
     </aside>
 
@@ -402,7 +408,7 @@ function App() {
       <header className="topbar">
         <button className="mobile-menu" aria-label="打开导航">☰</button>
         <div className="crumb"><span>家庭端</span><b>/</b><strong>{activeNav}</strong></div>
-        <div className="top-actions"><button className="search">⌕ <span>搜索</span></button>{!isPublicSpace && !isFamilyMembers && !isAdminCenter && <button className="new-card" onClick={() => isRecordView ? setComposerOpen(true) : activeNav === "观察手册" ? setHandbookDialogOpen(true) : activeNav === "标签管理" ? setTagDialogOpen(true) : activeNav === "导出文件" ? setExportDialogOpen(true) : undefined}>＋ {actionLabel}</button>}</div>
+        <div className="top-actions"><button className="search">⌕ <span>搜索</span></button>{canEditFamily && !isPublicSpace && !isFamilyMembers && !isAdminCenter && <button className="new-card" onClick={() => isRecordView ? setComposerOpen(true) : activeNav === "观察手册" ? setHandbookDialogOpen(true) : activeNav === "标签管理" ? setTagDialogOpen(true) : activeNav === "导出文件" ? setExportDialogOpen(true) : undefined}>＋ {actionLabel}</button>}</div>
       </header>
       <section className="page-heading">
         <div><p className="eyebrow">{isAdminCenter ? "平台管理 · 超级管理员" : isPublicSpace ? "公共观察档案 · 正在持续更新" : `${child}的观察档案 · 2026`}</p><h1>{isAdminMembers ? "成员管理" : heading}</h1><p className="subhead">{isRecordView ? "把当下的发现，收进时间的册页。" : activeNav === "观察手册" ? "将同一主题的发现编成可以持续生长的手册。" : activeNav === "标签管理" ? "为观察命名，并把同一主题的记录聚拢在一起。" : activeNav === "导出文件" ? "生成后可下载或删除；屏幕版无出血，印刷版含 3mm 出血与裁切线。" : isFamilyMembers ? "一个家庭只有一位管理员，其他成人仅可查看内容。" : isAdminMembers ? "管理后台成员、权限和密码重置。" : isAdminTemplates ? "分别维护封面、封底和卡片的固定模板版本。" : isAdminLogs ? "查看平台操作与关键事件记录。" : "来自不同家庭的持续观察手册。"}</p></div>
@@ -447,4 +453,4 @@ function App() {
   </div>;
 }
 
-createRoot(document.getElementById("root")!).render(<AuthGate><App /></AuthGate>);
+createRoot(document.getElementById("root")!).render(<AuthGate>{workspace => <App workspace={workspace} />}</AuthGate>);
