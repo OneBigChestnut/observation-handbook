@@ -11,6 +11,21 @@ type HandbookRouteOptions = { database: AppDatabase; config: ApiConfig };
 type HandbookPayload = { title?: string; introduction?: string; startedAt?: string; completedAt?: string | null; tagIds?: unknown; cardIds?: unknown };
 
 export const registerHandbookRoutes: FastifyPluginAsync<HandbookRouteOptions> = async (app, options) => {
+  app.get<{ Params: { childId: string } }>("/api/children/:childId/handbooks", async (request, reply) => {
+    const actor = await getActor(options, request.cookies[options.config.sessionCookie.name]);
+    if (!actor) return reply.code(401).send({ code: "AUTH_REQUIRED" });
+    const child = await options.database.query.children.findFirst({ where: eq(children.id, request.params.childId) });
+    if (!child) return reply.code(404).send({ code: "CHILD_NOT_FOUND" });
+    try { requireChildAccess(actor, child); } catch (error) { return reply.code(403).send({ code: error instanceof Error ? error.message : "FAMILY_ACCESS_DENIED" }); }
+    const childHandbooks = await options.database.select().from(handbooks).where(eq(handbooks.childId, child.id));
+    const summaries = await Promise.all(childHandbooks.map(async handbook => {
+      const cards = await options.database.select({ cardId: handbookCards.cardId }).from(handbookCards).where(eq(handbookCards.handbookId, handbook.id));
+      const relatedTags = await options.database.select({ tagId: handbookTags.tagId }).from(handbookTags).where(eq(handbookTags.handbookId, handbook.id));
+      return { ...handbookResponse(handbook, cards.map(card => card.cardId), relatedTags.map(tag => tag.tagId)), cardCount: cards.length, tagCount: relatedTags.length };
+    }));
+    return { handbooks: summaries };
+  });
+
   app.post<{ Params: { childId: string }; Body: HandbookPayload }>("/api/children/:childId/handbooks", async (request, reply) => {
     const actor = await getActor(options, request.cookies[options.config.sessionCookie.name]);
     if (!actor) return reply.code(401).send({ code: "AUTH_REQUIRED" });

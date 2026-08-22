@@ -23,8 +23,11 @@ describe("handbook api", () => {
     const cookie = login.headers["set-cookie"] as string;
 
     const created = await app.inject({ method: "POST", url: "/api/children/child-a/handbooks", headers: { cookie }, payload: { title: "银杏的一年", introduction: "四季观察", startedAt: "2026-03-10", tagIds: ["tag-ginkgo"] } });
+    const listed = await app.inject({ method: "GET", url: "/api/children/child-a/handbooks", headers: { cookie } });
     expect(created.statusCode).toBe(201);
     expect(created.json()).toMatchObject({ handbook: { title: "银杏的一年", status: "ongoing", cardIds: ["card-ginkgo-1"], tagIds: ["tag-ginkgo"] } });
+    expect(listed.statusCode).toBe(200);
+    expect(listed.json()).toMatchObject({ handbooks: [{ title: "银杏的一年", cardCount: 1, tagCount: 1 }] });
     await database.insert(observationCards).values({ id: "card-ginkgo-2", childId: "child-a", observedAt: "2026-08-22", text: "第二片黄叶", createdAt: new Date(), updatedAt: new Date() });
     await database.insert(cardTags).values({ cardId: "card-ginkgo-2", tagId: "tag-ginkgo" });
     const detail = await app.inject({ method: "GET", url: `/api/handbooks/${created.json().handbook.id}`, headers: { cookie } });
