@@ -29,6 +29,9 @@ export type ObservationCardSummary = {
   tags: { id: string; name: string; color: string }[];
 };
 
+export type TagSummary = { id: string; name: string; color: string; cardCount: number };
+export type HandbookSummary = { id: string; title: string; introduction: string; startedAt: string; completedAt: string | null; status: "ongoing" | "completed"; cardCount: number; tagCount: number };
+
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
@@ -47,6 +50,8 @@ export const apiClient = {
   login: (username: string, password: string) => request("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }),
   currentFamilies: () => request<{ families: WorkspaceFamily[] }>("/api/families/current"),
   cards: (childId: string) => request<{ cards: ObservationCardSummary[] }>(`/api/children/${childId}/cards`).then(response => response.cards),
+  tags: (childId: string) => request<{ tags: TagSummary[] }>(`/api/children/${childId}/tags`).then(response => response.tags),
+  handbooks: (childId: string) => request<{ handbooks: HandbookSummary[] }>(`/api/children/${childId}/handbooks`).then(response => response.handbooks),
   workspace: async (): Promise<Workspace> => {
     const [session, familyResponse] = await Promise.all([apiClient.me(), apiClient.currentFamilies()]);
     return { account: { id: session.accountId, username: session.username, platformRole: session.platformRole }, families: familyResponse.families };
