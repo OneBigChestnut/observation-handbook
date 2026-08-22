@@ -17,6 +17,6 @@ export function AuthGate({ children, loadSession = apiClient.me }: AuthGateProps
   }, [loadSession]);
 
   if (state === "loading") return <main className="login-page">正在验证登录状态…</main>;
-  if (state === "anonymous") return <LoginPage />;
+  if (state === "anonymous") return <LoginPage onAuthenticated={() => setState("authenticated")} />;
   return <>{children}</>;
 }

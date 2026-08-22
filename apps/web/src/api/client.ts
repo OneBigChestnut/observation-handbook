@@ -19,4 +19,5 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const apiClient = {
   me: () => request("/api/auth/me"),
+  login: (username: string, password: string) => request("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }),
 };
