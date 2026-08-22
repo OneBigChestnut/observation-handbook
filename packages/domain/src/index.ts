@@ -87,6 +87,13 @@ export function assignFamilyRole(members: FamilyMember[], accountId: string, rol
   return [...next, { accountId, role }];
 }
 
+export function removeFamilyMember(members: FamilyMember[], accountId: string): FamilyMember[] {
+  const member = members.find(item => item.accountId === accountId);
+  if (!member) return members;
+  if (member.role === "family_admin") throw new Error("a family has exactly one family administrator");
+  return members.filter(item => item.accountId !== accountId);
+}
+
 export function assertChildResourceAccess(input: { selectedChildId: string; resourceChildId: string }): void {
   if (input.selectedChildId !== input.resourceChildId) {
     throw new Error("child scope violation");
