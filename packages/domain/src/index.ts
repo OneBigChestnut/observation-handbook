@@ -1,4 +1,5 @@
 export const CARD_PHOTO_LIMIT = 4;
+export * from "./access.js";
 export const PAPER_SIZE = "A5" as const;
 export type PaperSize = typeof PAPER_SIZE;
 
