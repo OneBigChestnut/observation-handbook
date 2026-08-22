@@ -28,8 +28,11 @@ describe("handbook api", () => {
     await database.insert(observationCards).values({ id: "card-ginkgo-2", childId: "child-a", observedAt: "2026-08-22", text: "第二片黄叶", createdAt: new Date(), updatedAt: new Date() });
     await database.insert(cardTags).values({ cardId: "card-ginkgo-2", tagId: "tag-ginkgo" });
     const detail = await app.inject({ method: "GET", url: `/api/handbooks/${created.json().handbook.id}`, headers: { cookie } });
+    const updated = await app.inject({ method: "PATCH", url: `/api/handbooks/${created.json().handbook.id}`, headers: { cookie }, payload: { completedAt: "2026-08-22", cardIds: ["card-ginkgo-1", "card-ginkgo-2"], tagIds: ["tag-ginkgo"] } });
     expect(detail.statusCode).toBe(200);
     expect(detail.json()).toMatchObject({ handbook: { cardIds: ["card-ginkgo-1"] } });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json()).toMatchObject({ handbook: { status: "completed", completedAt: "2026-08-22", cardIds: ["card-ginkgo-1", "card-ginkgo-2"] } });
     await app.close();
   });
 });
