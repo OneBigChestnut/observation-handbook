@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { assertCardTemplateMatchesHandbook, assignPlatformRole, createGeneratedExport, createObservationCard, createObservationTag, DEFAULT_CARD_VIEW, filterObservationCardsByHandbook, getCardTemplateCategory, getFamilyAccountPopulation, getTemplateRemovalAction, groupTagsByChild, publishObservationHandbook, removeFamilyMember, removeGeneratedExport, removePlatformMember, unpublishObservationHandbook, type CardView, type PdfExportKind } from "@observation-handbook/domain";
+import { assertCardTemplateMatchesHandbook, assignPlatformRole, createGeneratedExport, createObservationCard, createObservationTag, DEFAULT_CARD_VIEW, filterObservationCardsByHandbook, getCardTemplateCategory, getFamilyAccountPopulation, getPdfExportSpec, getTemplateRemovalAction, groupTagsByChild, publishObservationHandbook, removeFamilyMember, removeGeneratedExport, removePlatformMember, unpublishObservationHandbook, type CardView, type PdfExportKind } from "@observation-handbook/domain";
 import "./styles.css";
 
 type Card = {
@@ -349,10 +349,16 @@ function App() {
   const downloadExport = async (file: ExportFile) => {
     if (file.status !== "可下载") { setExportNotice("印刷版需要先通过预检，才能生成并下载。"); return; }
     const { jsPDF } = await import("jspdf");
-    const pdf = new jsPDF({ unit: "mm", format: "a4" });
-    pdf.setFontSize(22); pdf.text(file.handbook, 20, 28);
-    pdf.setFontSize(12); pdf.text(file.kind, 20, 38);
-    pdf.setFontSize(10); pdf.text("Observation handbook export snapshot", 20, 48);
+    const handbook = handbookItems.find(item => item.title === file.handbook) ?? handbookItems[0];
+    const cards = filterObservationCardsByHandbook(cardItems, handbook.id);
+    const spec = getPdfExportSpec(file.kind === "印刷 PDF" ? "print" : "screen");
+    const pdf = new jsPDF({ unit: "mm", format: [148, 210] });
+    const drawImage = async (source: string, x: number, y: number, width: number, height: number) => { try { const blob = await fetch(source).then(response => response.blob()); const dataUrl = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(blob); }); pdf.addImage(dataUrl, "JPEG", x, y, width, height); } catch { pdf.setFillColor(226, 235, 226); pdf.rect(x, y, width, height, "F"); } };
+    await drawImage(imageUrl(handbook.cover, 900), 0, 0, 148, 210);
+    pdf.setFillColor(17, 38, 30); pdf.rect(0, 144, 148, 66, "F"); pdf.setTextColor(255, 255, 255); pdf.setFontSize(24); pdf.text(handbook.title, 12, 166); pdf.setFontSize(10); pdf.text(`${child} · ${handbook.startedAt}`, 12, 178);
+    pdf.addPage([148, 210]); pdf.setTextColor(38, 67, 51); pdf.setFontSize(20); pdf.text("Observation notes", 12, 24); pdf.setFontSize(10); pdf.text(handbook.introduction, 12, 38, { maxWidth: 124 });
+    for (const card of cards) { pdf.addPage([148, 210]); const photoHeight = card.photos.length > 1 ? 60 : 104; for (let index = 0; index < card.photos.length; index += 1) { const columns = card.photos.length === 2 ? 2 : card.photos.length > 2 ? 2 : 1; const width = columns === 1 ? 124 : 59; const x = 12 + (index % columns) * 65; const y = 14 + Math.floor(index / columns) * (photoHeight + 5); await drawImage(imageUrl(card.photos[index], 520), x, y, width, photoHeight); } pdf.setTextColor(38, 67, 51); pdf.setFontSize(17); pdf.text(card.title, 12, 148); pdf.setFontSize(10); pdf.text(card.note, 12, 160, { maxWidth: 124 }); pdf.setFontSize(8); pdf.text(card.tags.map(tag => `#${tag}`).join("  "), 12, 185); }
+    if (spec.cropMarks) { for (let page = 1; page <= pdf.getNumberOfPages(); page += 1) { pdf.setPage(page); pdf.setDrawColor(60, 60, 60); pdf.setLineWidth(.2); pdf.line(2, 5, 8, 5); pdf.line(5, 2, 5, 8); pdf.line(140, 205, 146, 205); pdf.line(143, 202, 143, 208); } }
     pdf.save(`${file.title}.pdf`);
   };
 
