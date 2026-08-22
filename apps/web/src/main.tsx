@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { assertCardTemplateMatchesHandbook, createGeneratedExport, createObservationCard, DEFAULT_CARD_VIEW, getCardTemplateCategory, getTemplateRemovalAction, publishObservationHandbook, removeFamilyMember, removeGeneratedExport, unpublishObservationHandbook, type CardView, type PdfExportKind } from "@observation-handbook/domain";
+import { assertCardTemplateMatchesHandbook, assignPlatformRole, createGeneratedExport, createObservationCard, DEFAULT_CARD_VIEW, getCardTemplateCategory, getTemplateRemovalAction, publishObservationHandbook, removeFamilyMember, removeGeneratedExport, removePlatformMember, unpublishObservationHandbook, type CardView, type PdfExportKind } from "@observation-handbook/domain";
 import "./styles.css";
 
 type Card = {
@@ -34,7 +34,7 @@ type ExportFile = { id: string; title: string; handbook: string; kind: "屏幕 P
 type PublicHandbook = { title: string; introduction: string; family: string; child: string; publishedAt: string; cardCount: number; cover: string; tag: string };
 type FamilyMemberSummary = { id: string; name: string; initial: string; role: "家庭管理员" | "只读成员"; joinedAt: string; color: string };
 type AdminTemplate = { name: string; version: string; usage: number; status: "已发布" | "已停用"; updatedAt: string };
-type PlatformMember = { name: string; email: string; role: "超级管理员" | "运营管理员"; initial: string };
+type PlatformMember = { id: string; name: string; email: string; role: "超级管理员" | "运营管理员"; initial: string };
 type FamilyAccount = { family: string; administrator: string; readers: number; children: number; updatedAt: string };
 type TemplateGroup = { id: string; paper: "A5"; type: string; templateCount: number };
 type TemplateVersion = { id: string; name: string; usageCount: number; status: "已发布" | "已停用" };
@@ -88,9 +88,9 @@ const adminTemplates: AdminTemplate[] = [
 ];
 
 const platformMembers: PlatformMember[] = [
-  { name: "林然", email: "lin@example.com", role: "超级管理员", initial: "林" },
-  { name: "周宁", email: "zhou@example.com", role: "运营管理员", initial: "周" },
-  { name: "陈雪", email: "chen@example.com", role: "运营管理员", initial: "陈" },
+  { id: "platform-lin", name: "林然", email: "lin@example.com", role: "超级管理员", initial: "林" },
+  { id: "platform-zhou", name: "周宁", email: "zhou@example.com", role: "运营管理员", initial: "周" },
+  { id: "platform-chen", name: "陈雪", email: "chen@example.com", role: "运营管理员", initial: "陈" },
 ];
 
 const familyAccounts: FamilyAccount[] = [
@@ -170,8 +170,8 @@ function AdminTemplateRow({ template }: { template: AdminTemplate }) {
   return <article className="admin-template-row"><div className="template-sheet"><span>{template.version}</span></div><div><h2>{template.name}</h2><p>更新于 {template.updatedAt}</p></div><span>{template.usage} 次使用</span><span className={template.status === "已发布" ? "template-live" : "template-retired"}>{template.status}</span><button aria-label={`管理 ${template.name}`}>→</button></article>;
 }
 
-function PlatformMemberRow({ member }: { member: PlatformMember }) {
-  return <article className="platform-member-row"><span className="member-avatar green">{member.initial}</span><div><h2>{member.name}</h2><p>{member.email}</p></div><select defaultValue={member.role} aria-label={`${member.name} 的权限`}><option>超级管理员</option><option>运营管理员</option></select><button>重置密码</button><button className="delete-export">删除</button></article>;
+function PlatformMemberRow({ member, onRoleChange, onResetPassword, onDelete }: { member: PlatformMember; onRoleChange: (member: PlatformMember, role: PlatformMember["role"]) => void; onResetPassword: (member: PlatformMember) => void; onDelete: (member: PlatformMember) => void }) {
+  return <article className="platform-member-row"><span className="member-avatar green">{member.initial}</span><div><h2>{member.name}</h2><p>{member.email}</p></div><select value={member.role} aria-label={`${member.name} 的权限`} onChange={event => onRoleChange(member, event.target.value as PlatformMember["role"])}><option>超级管理员</option><option>运营管理员</option></select><button onClick={() => onResetPassword(member)}>重置密码</button><button className="delete-export" onClick={() => onDelete(member)}>删除</button></article>;
 }
 
 function FamilyAccountRow({ account }: { account: FamilyAccount }) {
@@ -213,6 +213,9 @@ function App() {
   const [newMemberName, setNewMemberName] = useState("");
   const [memberNotice, setMemberNotice] = useState("");
   const [handbookNotice, setHandbookNotice] = useState("");
+  const [platformMemberItems, setPlatformMemberItems] = useState(platformMembers);
+  const [adminNotice, setAdminNotice] = useState("");
+  const [adminLogItems, setAdminLogItems] = useState(["林然发布《四季里的银杏》至公共空间", "周宁创建模板「城市漫游 · 横向册 v1.1」", "陈雪将模板「自然观察 · 初版」设置为停用"]);
   const heading = useMemo(() => activeNav === "今日记录" ? "八月的观察" : activeNav, [activeNav]);
   const isRecordView = activeNav === "今日记录";
   const isPublicSpace = activeNav === "公共空间";
@@ -292,6 +295,27 @@ function App() {
     setHandbookItems(current => current.map(item => item.id === handbook.id ? { ...item, publishedAt: "刚刚" } : item));
     setHandbookNotice(`已将《${handbook.title}》直接发布到公共空间。`);
   };
+  const addPlatformMember = () => {
+    const id = `platform-${Date.now()}`;
+    setPlatformMemberItems(current => [...current, { id, name: "新运营管理员", email: "new-admin@example.com", role: "运营管理员", initial: "新" }]);
+    setAdminNotice("已添加一位运营管理员，请继续完善账号信息。");
+    setAdminLogItems(current => ["新增运营管理员账号", ...current]);
+  };
+  const changePlatformRole = (member: PlatformMember, role: PlatformMember["role"]) => {
+    try {
+      const next = assignPlatformRole(platformMemberItems.map(item => ({ accountId: item.id, role: item.role === "超级管理员" ? "super_admin" as const : "operations_admin" as const })), member.id, role === "超级管理员" ? "super_admin" : "operations_admin");
+      setPlatformMemberItems(current => current.map(item => ({ ...item, role: next.find(nextMember => nextMember.accountId === item.id)?.role === "super_admin" ? "超级管理员" : "运营管理员" })));
+      setAdminNotice(`已更新 ${member.name} 的平台权限。`); setAdminLogItems(current => [`调整 ${member.name} 的平台权限`, ...current]);
+    } catch (error) { setAdminNotice(error instanceof Error ? error.message : "权限调整失败。"); }
+  };
+  const resetPlatformPassword = (member: PlatformMember) => { setAdminNotice(`已向 ${member.name} 发起密码重置。`); setAdminLogItems(current => [`向 ${member.name} 发起密码重置`, ...current]); };
+  const deletePlatformMember = (member: PlatformMember) => {
+    try {
+      const remaining = removePlatformMember(platformMemberItems.map(item => ({ accountId: item.id, role: item.role === "超级管理员" ? "super_admin" as const : "operations_admin" as const })), member.id);
+      setPlatformMemberItems(current => current.filter(item => remaining.some(next => next.accountId === item.id)));
+      setAdminNotice(`已删除 ${member.name} 的平台账号。`); setAdminLogItems(current => [`删除平台账号 ${member.name}`, ...current]);
+    } catch (error) { setAdminNotice(error instanceof Error ? error.message : "删除失败。"); }
+  };
   const generateExport = () => {
     const handbook = handbookItems.find(item => item.id === selectedHandbookId) ?? handbookItems[0];
     const generated = createGeneratedExport({ id: `export-${Date.now()}`, handbookId: handbook.id, kind: selectedPdfKind });
@@ -357,9 +381,9 @@ function App() {
       {activeNav === "导出文件" && <section className="export-view">{exportNotice && <div className="export-success"><span>✓</span>{exportNotice}<button aria-label="关闭提示" onClick={() => setExportNotice("")}>×</button></div>}<div className="export-rule"><p>已生成文件</p><i></i><span>{exportFiles.length} 个文件</span></div><div className="export-list">{exportFiles.map(file => <ExportRow key={file.id} file={file} onDelete={id => setExportFiles(current => removeGeneratedExport(current, id))} onDownload={downloadExport} />)}</div></section>}
       {isPublicSpace && <section className="public-space-view"><div className="public-rule"><p>最新发布</p><i></i><span>全部公开手册</span></div><div className="public-handbook-grid">{[...publishedFamilyHandbooks, ...publicHandbooks].map(handbook => <PublicHandbookTile key={`${handbook.family}-${handbook.title}`} handbook={handbook} />)}</div></section>}
       {isFamilyMembers && <section className="members-view">{memberNotice && <div className="export-success"><span>✓</span>{memberNotice}<button aria-label="关闭提示" onClick={() => setMemberNotice("")}>×</button></div>}<div className="members-note"><b>成员权限</b><span>管理员可管理家庭、小朋友与发布；只读成员仅能查看。</span></div><div className="members-rule"><p>家庭成员</p><i></i><span>{familyMemberItems.length} 位成人</span><button onClick={() => setMemberDialogOpen(true)}>＋ 添加成员</button></div><div className="members-list">{familyMemberItems.map(member => <FamilyMemberRow key={member.id} member={member} onManage={setSelectedFamilyMember} />)}</div></section>}
-      {isAdminMembers && <section className="admin-view"><div className="admin-rule"><p>后台成员</p><i></i><button>＋ 添加成员</button></div><div className="platform-member-list">{platformMembers.map(member => <PlatformMemberRow key={member.email} member={member} />)}</div><div className="admin-rule spaced"><p>家庭账号</p><i></i><button>搜索家庭</button></div><div className="family-account-list">{familyAccounts.map(account => <FamilyAccountRow key={account.family} account={account} />)}</div></section>}
+      {isAdminMembers && <section className="admin-view">{adminNotice && <div className="export-success"><span>✓</span>{adminNotice}<button aria-label="关闭提示" onClick={() => setAdminNotice("")}>×</button></div>}<div className="admin-rule"><p>后台成员</p><i></i><button onClick={addPlatformMember}>＋ 添加成员</button></div><div className="platform-member-list">{platformMemberItems.map(member => <PlatformMemberRow key={member.id} member={member} onRoleChange={changePlatformRole} onResetPassword={resetPlatformPassword} onDelete={deletePlatformMember} />)}</div><div className="admin-rule spaced"><p>家庭账号</p><i></i><button onClick={() => setAdminNotice("家庭账号管理入口已就绪，可按家庭查看管理员、只读成人和小朋友。")}>管理家庭账号 →</button></div><div className="family-account-list">{familyAccounts.map(account => <FamilyAccountRow key={account.family} account={account} />)}</div></section>}
       {isAdminTemplates && <section className="admin-view template-management">{templateNotice && <div className="export-success"><span>✓</span>{templateNotice}<button aria-label="关闭提示" onClick={() => setTemplateNotice("")}>×</button></div>}<div className="template-table-wrap"><table><thead><tr><th>纸张大小</th><th>模板类型</th><th>模板套数</th><th>方向</th></tr></thead><tbody>{templateGroupsWithVersions.map(group => <tr key={group.id} className={selectedTemplateGroup.id === group.id ? "selected" : ""} onClick={() => setSelectedTemplateGroupId(group.id)}><td>{group.paper}</td><td>{group.type}</td><td><b>{group.templateCount}</b> 套</td><td>竖版</td></tr>)}</tbody></table></div><div className="admin-rule spaced"><p>{selectedTemplateGroup.paper} 竖版 · {selectedTemplateGroup.type}</p><i></i><span>{selectedTemplateGroup.templateCount} 套模板</span><button onClick={addTemplateVersion}>＋ 新建模板</button></div><div className="template-gallery">{selectedTemplateVersions.map((version, index) => <article key={version.id} className={`template-thumbnail photos-${selectedTemplateGroup.type.includes("卡片") ? selectedTemplateGroup.type.match(/[1-4]/)?.[0] : "cover"}`}><div className="thumbnail-paper"><span>{selectedTemplateGroup.paper}</span><b>{selectedTemplateGroup.type.includes("封面") ? "观察手册" : selectedTemplateGroup.type.includes("封底") ? "档案终页" : `版式 ${String.fromCharCode(65 + index)}`}</b><i></i></div><footer><strong>{version.name}</strong><span className={version.status === "已停用" ? "template-retired" : "template-version-status"}>{version.status === "已停用" ? "已停用" : version.usageCount > 0 ? `${version.usageCount} 次使用` : "未使用"}</span><button onClick={() => openTemplateEditor(version)}>编辑</button><button className="delete-export" onClick={() => removeTemplateVersion(version)}>{version.usageCount > 0 ? "停用" : "删除"}</button></footer></article>)}</div></section>}
-      {isAdminLogs && <section className="admin-view"><div className="admin-rule"><p>操作日志</p><i></i><button>筛选 ▾</button></div><div className="admin-template-list"><div className="admin-log"><b>10:42</b><span>林然发布《四季里的银杏》至公共空间</span><button>详情 →</button></div><div className="admin-log"><b>09:16</b><span>周宁创建模板「城市漫游 · 横向册 v1.1」</span><button>详情 →</button></div><div className="admin-log"><b>昨天</b><span>陈雪将模板「自然观察 · 初版」设置为停用</span><button>详情 →</button></div></div></section>}
+      {isAdminLogs && <section className="admin-view"><div className="admin-rule"><p>操作日志</p><i></i><button>筛选 ▾</button></div><div className="admin-template-list">{adminLogItems.map((entry, index) => <div className="admin-log" key={`${entry}-${index}`}><b>{index === 0 ? "刚刚" : index === 1 ? "10:42" : "昨天"}</b><span>{entry}</span><button>详情 →</button></div>)}</div></section>}
       {isComposerOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => setComposerOpen(false)}><form className="card-composer" onSubmit={(event) => { event.preventDefault(); saveCard(); }} onMouseDown={event => event.stopPropagation()}>
         <header><div><p>为 {child} 新建</p><h2>观察卡片</h2></div><button type="button" aria-label="关闭新建卡片" onClick={() => setComposerOpen(false)}>×</button></header>
         <label className="field-label">选择照片 <span>{draftPhotos.length}/4</span></label><div className="photo-picker">{photoChoices.map(photo => <button type="button" className={draftPhotos.includes(photo) ? "picked" : ""} key={photo} onClick={() => togglePhoto(photo)}><img src={imageUrl(photo, 180)} alt="" /><i>{draftPhotos.includes(photo) ? "✓" : "+"}</i></button>)}</div>

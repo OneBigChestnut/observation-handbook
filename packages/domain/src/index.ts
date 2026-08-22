@@ -76,6 +76,24 @@ export function assertSuperAdminAccess(role: AccountRole): void {
   }
 }
 
+export function removePlatformMember<T extends { accountId: string; role: "super_admin" | "operations_admin" }>(members: T[], accountId: string): T[] {
+  const member = members.find(item => item.accountId === accountId);
+  if (!member) return members;
+  if (member.role === "super_admin" && members.filter(item => item.role === "super_admin").length === 1) {
+    throw new Error("a platform has at least one super administrator");
+  }
+  return members.filter(item => item.accountId !== accountId);
+}
+
+export function assignPlatformRole<T extends { accountId: string; role: "super_admin" | "operations_admin" }>(members: T[], accountId: string, role: T["role"]): T[] {
+  const member = members.find(item => item.accountId === accountId);
+  if (!member) return members;
+  if (member.role === "super_admin" && role === "operations_admin" && members.filter(item => item.role === "super_admin").length === 1) {
+    throw new Error("a platform has at least one super administrator");
+  }
+  return members.map(item => item.accountId === accountId ? { ...item, role } : item);
+}
+
 export function assignFamilyRole(members: FamilyMember[], accountId: string, role: FamilyRole): FamilyMember[] {
   const next = members.filter(member => member.accountId !== accountId);
   if (role === "family_admin" && next.some(member => member.role === "family_admin")) {
