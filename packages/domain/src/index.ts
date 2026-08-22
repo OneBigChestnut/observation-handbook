@@ -43,6 +43,16 @@ export function getCardTemplateCategory(photoCount: number): CardTemplateCategor
   return ["one_photo", "two_photos", "three_photos", "four_photos"][photoCount - 1] as CardTemplateCategory;
 }
 
+export function assertCardTemplateMatchesHandbook(input: {
+  handbookPaper: "A4" | "A5";
+  templatePaper: "A4" | "A5";
+  photoCount: number;
+  templateCategory: CardTemplateCategory;
+}): void {
+  if (input.handbookPaper !== input.templatePaper) throw new Error("template paper size must match handbook paper size");
+  if (getCardTemplateCategory(input.photoCount) !== input.templateCategory) throw new Error("template photo count must match card photo count");
+}
+
 export function assertPortraitTemplate(orientation: "portrait" | "landscape"): void {
   if (orientation !== "portrait") throw new Error("only portrait templates are supported");
 }

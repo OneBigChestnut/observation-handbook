@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { createGeneratedExport, createObservationCard, DEFAULT_CARD_VIEW, getTemplateRemovalAction, removeGeneratedExport, type CardView, type PdfExportKind } from "@observation-handbook/domain";
+import { assertCardTemplateMatchesHandbook, createGeneratedExport, createObservationCard, DEFAULT_CARD_VIEW, getCardTemplateCategory, getTemplateRemovalAction, removeGeneratedExport, type CardView, type PdfExportKind } from "@observation-handbook/domain";
 import "./styles.css";
 
 type Card = {
   id: string;
+  handbookId?: string;
   date: string;
   title: string;
   note: string;
@@ -47,9 +48,9 @@ const seedCards: Card[] = [
 ];
 
 const handbooks: Handbook[] = [
-  { id: "ginkgo", title: "银杏的一年", introduction: "从春天的新芽，到冬天静静落下的叶子。", startedAt: "2026.03.10", updatedAt: "2026.08.18", cardCount: 18, cover: "photo-1502082553048-f009c37129b9", status: "持续观察" },
-  { id: "street", title: "门前的街道", introduction: "留意街角店铺、路面和季节里的细小变化。", startedAt: "2026.04.02", updatedAt: "2026.08.16", cardCount: 12, cover: "photo-1470770841072-f978cf4d019e", status: "持续观察" },
-  { id: "rain", title: "雨天收集册", introduction: "雨滴、积水、伞面和雨后出现的小生物。", startedAt: "2026.05.14", completedAt: "2026.07.30", updatedAt: "2026.07.30", cardCount: 9, cover: "photo-1511497584788-876760111969", status: "已完成" },
+  { id: "ginkgo", title: "银杏的一年", introduction: "从春天的新芽，到冬天静静落下的叶子。", startedAt: "2026.03.10", updatedAt: "2026.08.18", cardCount: 18, cover: "photo-1502082553048-f009c37129b9", status: "持续观察", paperSize: "A4" },
+  { id: "street", title: "门前的街道", introduction: "留意街角店铺、路面和季节里的细小变化。", startedAt: "2026.04.02", updatedAt: "2026.08.16", cardCount: 12, cover: "photo-1470770841072-f978cf4d019e", status: "持续观察", paperSize: "A5" },
+  { id: "rain", title: "雨天收集册", introduction: "雨滴、积水、伞面和雨后出现的小生物。", startedAt: "2026.05.14", completedAt: "2026.07.30", updatedAt: "2026.07.30", cardCount: 9, cover: "photo-1511497584788-876760111969", status: "已完成", paperSize: "A5" },
 ];
 
 const tags: TagSummary[] = [
@@ -194,7 +195,7 @@ function App() {
   const [draftText, setDraftText] = useState("");
   const [draftPhotos, setDraftPhotos] = useState([photoChoices[0]]);
   const [draftTags, setDraftTags] = useState<string[]>(["银杏"]);
-  const [selectedCardLayout, setSelectedCardLayout] = useState("版式 A");
+  const [selectedCardLayout, setSelectedCardLayout] = useState("卡片版式 A");
   const [isHandbookDialogOpen, setHandbookDialogOpen] = useState(false);
   const [handbookPaperSize, setHandbookPaperSize] = useState<"A4" | "A5">("A4");
   const [selectedCoverTemplate, setSelectedCoverTemplate] = useState("A4 竖版 · 自然封面");
@@ -206,6 +207,7 @@ function App() {
   const [templateEditor, setTemplateEditor] = useState<{ groupId: string; versionId: string } | null>(null);
   const [templateVersionName, setTemplateVersionName] = useState("");
   const [handbookItems, setHandbookItems] = useState(handbooks);
+  const [selectedCardHandbookId, setSelectedCardHandbookId] = useState(handbooks[0].id);
   const [handbookTitle, setHandbookTitle] = useState("");
   const [handbookIntroduction, setHandbookIntroduction] = useState("");
   const [handbookCompletedAt, setHandbookCompletedAt] = useState("");
@@ -228,6 +230,11 @@ function App() {
   const visibleTemplateGroups = templatePaperFilter === "全部" ? templateGroupsWithVersions : templateGroupsWithVersions.filter(group => group.paper === templatePaperFilter);
   const selectedTemplateGroup = visibleTemplateGroups.find(group => group.id === selectedTemplateGroupId) ?? visibleTemplateGroups[0];
   const selectedTemplateVersions = templateVersions[selectedTemplateGroup.id] ?? [];
+  const selectedCardHandbook = handbookItems.find(handbook => handbook.id === selectedCardHandbookId) ?? handbookItems[0];
+  const selectedCardPaperSize = selectedCardHandbook.paperSize ?? "A4";
+  const selectedCardTemplateGroup = templateGroupsWithVersions.find(group => group.paper === selectedCardPaperSize && group.type === `卡片 · ${draftPhotos.length} 张照片`);
+  const cardTemplateOptions = selectedCardTemplateGroup ? (templateVersions[selectedCardTemplateGroup.id] ?? []).filter(version => version.status === "已发布") : [];
+  const activeCardLayout = cardTemplateOptions.some(version => version.name === selectedCardLayout) ? selectedCardLayout : cardTemplateOptions[0]?.name;
   const actionLabel = isRecordView ? "新建记录" : activeNav === "标签管理" ? "新建标签" : activeNav === "导出文件" ? "导出手册" : "新建手册";
   const togglePhoto = (photo: string) => setDraftPhotos(current => current.includes(photo) ? current.filter(item => item !== photo) : current.length < 4 ? [...current, photo] : current);
   const toggleTag = (tag: string) => setDraftTags(current => current.includes(tag) ? current.filter(item => item !== tag) : [...current, tag]);
@@ -260,7 +267,10 @@ function App() {
   };
   const saveCard = () => {
     const created = createObservationCard({ childId: child, photos: draftPhotos, text: draftText.trim() });
-    setCardItems(current => [{ id: String(Date.now()), date: "08.21", title: created.text.slice(0, 12) || "新的观察", note: created.text || "今天的观察。", tags: draftTags, photos: created.photos }, ...current]);
+    if (!selectedCardTemplateGroup || !activeCardLayout) return;
+    assertCardTemplateMatchesHandbook({ handbookPaper: selectedCardPaperSize, templatePaper: selectedCardTemplateGroup.paper, photoCount: created.photos.length, templateCategory: getCardTemplateCategory(created.photos.length) });
+    setCardItems(current => [{ id: String(Date.now()), handbookId: selectedCardHandbook.id, date: "08.21", title: created.text.slice(0, 12) || "新的观察", note: created.text || "今天的观察。", tags: draftTags, photos: created.photos }, ...current]);
+    setHandbookItems(current => current.map(handbook => handbook.id === selectedCardHandbook.id ? { ...handbook, cardCount: handbook.cardCount + 1, updatedAt: "刚刚" } : handbook));
     setDraftText(""); setDraftPhotos([photoChoices[0]]); setDraftTags(["银杏"]); setComposerOpen(false);
   };
   const generateExport = () => {
@@ -334,8 +344,9 @@ function App() {
       {isComposerOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => setComposerOpen(false)}><form className="card-composer" onSubmit={(event) => { event.preventDefault(); saveCard(); }} onMouseDown={event => event.stopPropagation()}>
         <header><div><p>为 {child} 新建</p><h2>观察卡片</h2></div><button type="button" aria-label="关闭新建卡片" onClick={() => setComposerOpen(false)}>×</button></header>
         <label className="field-label">选择照片 <span>{draftPhotos.length}/4</span></label><div className="photo-picker">{photoChoices.map(photo => <button type="button" className={draftPhotos.includes(photo) ? "picked" : ""} key={photo} onClick={() => togglePhoto(photo)}><img src={imageUrl(photo, 180)} alt="" /><i>{draftPhotos.includes(photo) ? "✓" : "+"}</i></button>)}</div>
+        <label className="field-label" htmlFor="card-handbook">归入观察手册</label><select id="card-handbook" value={selectedCardHandbookId} onChange={event => setSelectedCardHandbookId(event.target.value)}>{handbookItems.map(handbook => <option key={handbook.id} value={handbook.id}>{handbook.title} · {handbook.paperSize ?? "A4"} 竖版</option>)}</select>
         <label className="field-label" htmlFor="observation-text">写下发现</label><textarea id="observation-text" value={draftText} onChange={event => setDraftText(event.target.value)} placeholder="今天发现了什么？" rows={4} />
-        <span className="field-label">卡片版式 <span>{draftPhotos.length} 张照片</span></span><div className="composer-tags">{["版式 A", "版式 B", "版式 C"].map(layout => <button type="button" className={selectedCardLayout === layout ? "picked" : ""} key={layout} onClick={() => setSelectedCardLayout(layout)}>{layout}</button>)}</div>
+        <span className="field-label">卡片版式 <span>{selectedCardPaperSize} 竖版 · {draftPhotos.length} 张照片</span></span><div className="composer-tags">{cardTemplateOptions.map(layout => <button type="button" className={activeCardLayout === layout.name ? "picked" : ""} key={layout.id} onClick={() => setSelectedCardLayout(layout.name)}>{layout.name}</button>)}</div>
         <span className="field-label">添加标签</span><div className="composer-tags">{tags.map(tag => <button type="button" className={draftTags.includes(tag.name) ? "picked" : ""} key={tag.name} onClick={() => toggleTag(tag.name)}>#{tag.name}</button>)}</div>
         <footer><button type="button" onClick={() => setComposerOpen(false)}>取消</button><button className="save-card" type="submit">保存记录</button></footer>
       </form></div>}
