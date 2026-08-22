@@ -16,7 +16,7 @@ export function getApiConfig(env: NodeJS.ProcessEnv): ApiConfig {
   }
 
   return {
-    databaseUrl: env.DATABASE_URL ?? "file:./dev.db",
+    databaseUrl: env.DATABASE_URL ?? "file:./data/dev.db",
     sessionCookie: {
       name: "observation_session",
       httpOnly: true,

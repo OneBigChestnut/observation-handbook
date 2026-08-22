@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { assertCardTemplateMatchesHandbook, assignPlatformRole, createGeneratedExport, createObservationCard, createObservationTag, DEFAULT_CARD_VIEW, filterObservationCardsByHandbook, getCardTemplateCategory, getFamilyAccountPopulation, getPdfExportSpec, getTemplateRemovalAction, groupTagsByChild, publishObservationHandbook, removeFamilyMember, removeGeneratedExport, removePlatformMember, unpublishObservationHandbook, type CardView, type PdfExportKind } from "@observation-handbook/domain";
+import { AuthGate } from "./auth/AuthGate.js";
 import "./styles.css";
 
 type Card = {
@@ -446,4 +447,4 @@ function App() {
   </div>;
 }
 
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(<AuthGate><App /></AuthGate>);
