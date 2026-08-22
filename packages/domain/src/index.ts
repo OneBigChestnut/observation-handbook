@@ -1,4 +1,10 @@
 export const CARD_PHOTO_LIMIT = 4;
+export const PAPER_SIZE = "A5" as const;
+export type PaperSize = typeof PAPER_SIZE;
+
+export function assertA5PaperSize(paperSize: string): asserts paperSize is PaperSize {
+  if (paperSize !== PAPER_SIZE) throw new Error("only A5 paper size is supported");
+}
 
 export type ObservationCard = {
   childId: string;
@@ -44,11 +50,13 @@ export function getCardTemplateCategory(photoCount: number): CardTemplateCategor
 }
 
 export function assertCardTemplateMatchesHandbook(input: {
-  handbookPaper: "A4" | "A5";
-  templatePaper: "A4" | "A5";
+  handbookPaper: PaperSize;
+  templatePaper: PaperSize;
   photoCount: number;
   templateCategory: CardTemplateCategory;
 }): void {
+  assertA5PaperSize(input.handbookPaper);
+  assertA5PaperSize(input.templatePaper);
   if (input.handbookPaper !== input.templatePaper) throw new Error("template paper size must match handbook paper size");
   if (getCardTemplateCategory(input.photoCount) !== input.templateCategory) throw new Error("template photo count must match card photo count");
 }
