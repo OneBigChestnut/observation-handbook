@@ -29,6 +29,7 @@ type ExportFile = { id: string; title: string; handbook: string; kind: "屏幕 P
 type PublicHandbook = { title: string; introduction: string; family: string; child: string; publishedAt: string; cardCount: number; cover: string; tag: string };
 type FamilyMemberSummary = { name: string; initial: string; role: "家庭管理员" | "只读成员"; joinedAt: string; color: string };
 type AdminTemplate = { name: string; version: string; usage: number; status: "已发布" | "已停用"; updatedAt: string };
+type PlatformMember = { name: string; email: string; role: "超级管理员" | "运营管理员"; initial: string };
 
 const seedCards: Card[] = [
   { id: "1", date: "08.18", title: "银杏叶的边缘", note: "今天发现最外圈的叶子已经有一点点金黄。", tags: ["银杏", "夏末"], photos: ["photo-1502082553048-f009c37129b9", "photo-1523712999610-f77fbcfc3843"] },
@@ -76,6 +77,12 @@ const adminTemplates: AdminTemplate[] = [
   { name: "自然观察 · 标准册", version: "v1.3", usage: 128, status: "已发布", updatedAt: "2026.08.18" },
   { name: "城市漫游 · 横向册", version: "v1.1", usage: 64, status: "已发布", updatedAt: "2026.08.12" },
   { name: "自然观察 · 初版", version: "v1.0", usage: 92, status: "已停用", updatedAt: "2026.05.03" },
+];
+
+const platformMembers: PlatformMember[] = [
+  { name: "林然", email: "lin@example.com", role: "超级管理员", initial: "林" },
+  { name: "周宁", email: "zhou@example.com", role: "运营管理员", initial: "周" },
+  { name: "陈雪", email: "chen@example.com", role: "运营管理员", initial: "陈" },
 ];
 
 const photoChoices = ["photo-1502082553048-f009c37129b9", "photo-1511497584788-876760111969", "photo-1531219572328-a0171b4448a3", "photo-1497250681960-ef046c08a56e"];
@@ -132,6 +139,10 @@ function AdminTemplateRow({ template }: { template: AdminTemplate }) {
   return <article className="admin-template-row"><div className="template-sheet"><span>{template.version}</span></div><div><h2>{template.name}</h2><p>更新于 {template.updatedAt}</p></div><span>{template.usage} 次使用</span><span className={template.status === "已发布" ? "template-live" : "template-retired"}>{template.status}</span><button aria-label={`管理 ${template.name}`}>→</button></article>;
 }
 
+function PlatformMemberRow({ member }: { member: PlatformMember }) {
+  return <article className="platform-member-row"><span className="member-avatar green">{member.initial}</span><div><h2>{member.name}</h2><p>{member.email}</p></div><select defaultValue={member.role} aria-label={`${member.name} 的权限`}><option>超级管理员</option><option>运营管理员</option></select><button>重置密码</button><button className="delete-export">删除</button></article>;
+}
+
 function App() {
   const [activeNav, setActiveNav] = useState("今日记录");
   const [view, setView] = useState<CardView>(DEFAULT_CARD_VIEW);
@@ -151,7 +162,10 @@ function App() {
   const isPublicSpace = activeNav === "公共空间";
   const isFamilyMembers = activeNav === "家庭成员";
   const isSuperAdmin = true;
-  const isAdminCenter = activeNav === "后台中心";
+  const isAdminMembers = activeNav === "后台成员管理";
+  const isAdminTemplates = activeNav === "模板管理";
+  const isAdminLogs = activeNav === "日志查看";
+  const isAdminCenter = isAdminMembers || isAdminTemplates || isAdminLogs;
   const actionLabel = isRecordView ? "新建记录" : activeNav === "标签管理" ? "新建标签" : activeNav === "导出文件" ? "导出手册" : "新建手册";
   const togglePhoto = (photo: string) => setDraftPhotos(current => current.includes(photo) ? current.filter(item => item !== photo) : current.length < 4 ? [...current, photo] : current);
   const toggleTag = (tag: string) => setDraftTags(current => current.includes(tag) ? current.filter(item => item !== tag) : [...current, tag]);
@@ -189,7 +203,7 @@ function App() {
         <p>发现</p>
         <button onClick={() => setActiveNav("公共空间")}>公共空间 <span>↗</span></button>
       </div>
-      {isSuperAdmin && <div className="nav-section admin-nav"><p>管理</p><button className={isAdminCenter ? "active" : ""} onClick={() => setActiveNav("后台中心")}>后台中心 <span>⌘</span></button></div>}
+      {isSuperAdmin && <div className="nav-section admin-nav"><p>后台中心</p><button className={isAdminMembers ? "active" : ""} onClick={() => setActiveNav("后台成员管理")}>成员管理</button><button className={isAdminTemplates ? "active" : ""} onClick={() => setActiveNav("模板管理")}>模板管理</button><button className={isAdminLogs ? "active" : ""} onClick={() => setActiveNav("日志查看")}>日志查看</button></div>}
       <div className="sidebar-bottom">
         <button className="child-switcher" onClick={() => setChild(child === "乐乐" ? "安安" : "乐乐")}>
           <span className="avatar">{child.slice(0, 1)}</span>
@@ -206,7 +220,7 @@ function App() {
         <div className="top-actions"><button className="search">⌕ <span>搜索</span></button>{!isPublicSpace && !isFamilyMembers && !isAdminCenter && <button className="new-card" onClick={() => isRecordView ? setComposerOpen(true) : activeNav === "导出文件" ? setExportDialogOpen(true) : undefined}>＋ {actionLabel}</button>}</div>
       </header>
       <section className="page-heading">
-        <div><p className="eyebrow">{isAdminCenter ? "平台管理 · 超级管理员" : isPublicSpace ? "公共观察档案 · 正在持续更新" : `${child}的观察档案 · 2026`}</p><h1>{heading}</h1><p className="subhead">{isRecordView ? "把当下的发现，收进时间的册页。" : activeNav === "观察手册" ? "将同一主题的发现编成可以持续生长的手册。" : activeNav === "标签管理" ? "为观察命名，并把同一主题的记录聚拢在一起。" : activeNav === "导出文件" ? "生成后可下载或删除；屏幕版无出血，印刷版含 3mm 出血与裁切线。" : isFamilyMembers ? "一个家庭只有一位管理员，其他成人仅可查看内容。" : isAdminCenter ? "管理平台成员、固定模板版本与操作日志。" : "来自不同家庭的持续观察手册。"}</p></div>
+        <div><p className="eyebrow">{isAdminCenter ? "平台管理 · 超级管理员" : isPublicSpace ? "公共观察档案 · 正在持续更新" : `${child}的观察档案 · 2026`}</p><h1>{isAdminMembers ? "成员管理" : heading}</h1><p className="subhead">{isRecordView ? "把当下的发现，收进时间的册页。" : activeNav === "观察手册" ? "将同一主题的发现编成可以持续生长的手册。" : activeNav === "标签管理" ? "为观察命名，并把同一主题的记录聚拢在一起。" : activeNav === "导出文件" ? "生成后可下载或删除；屏幕版无出血，印刷版含 3mm 出血与裁切线。" : isFamilyMembers ? "一个家庭只有一位管理员，其他成人仅可查看内容。" : isAdminMembers ? "管理后台成员、权限和密码重置。" : isAdminTemplates ? "分别维护封面、封底和卡片的固定模板版本。" : isAdminLogs ? "查看平台操作与关键事件记录。" : "来自不同家庭的持续观察手册。"}</p></div>
         <div className="summary"><b>{isRecordView ? "06" : isPublicSpace ? "03" : "03"}</b><span>{isRecordView ? "本月记录" : isPublicSpace ? "新近发布" : "观察手册"}</span><em></em><b>{isRecordView ? "04" : isPublicSpace ? "51" : "39"}</b><span>{isRecordView ? "观察主题" : isPublicSpace ? "收录卡片" : "收录卡片"}</span></div>
       </section>
       {isRecordView && <section className="toolbar">
@@ -225,7 +239,9 @@ function App() {
       {activeNav === "导出文件" && <section className="export-view">{exportNotice && <div className="export-success"><span>✓</span>{exportNotice}<button aria-label="关闭提示" onClick={() => setExportNotice("")}>×</button></div>}<div className="export-rule"><p>已生成文件</p><i></i><span>{exportFiles.length} 个文件</span></div><div className="export-list">{exportFiles.map(file => <ExportRow key={file.id} file={file} onDelete={id => setExportFiles(current => removeGeneratedExport(current, id))} onDownload={downloadExport} />)}</div></section>}
       {isPublicSpace && <section className="public-space-view"><div className="public-rule"><p>最新发布</p><i></i><span>全部公开手册</span></div><div className="public-handbook-grid">{publicHandbooks.map(handbook => <PublicHandbookTile key={handbook.title} handbook={handbook} />)}</div></section>}
       {isFamilyMembers && <section className="members-view"><div className="members-note"><b>成员权限</b><span>管理员可管理家庭、小朋友与发布；只读成员仅能查看。</span></div><div className="members-rule"><p>家庭成员</p><i></i><span>{familyMembers.length} 位成人</span></div><div className="members-list">{familyMembers.map(member => <FamilyMemberRow key={member.name} member={member} />)}</div></section>}
-      {isAdminCenter && <section className="admin-view"><div className="admin-stats"><article><span>平台家庭</span><b>128</b><p>本月新增 12</p></article><article><span>发布模板</span><b>02</b><p>共 3 个版本</p></article><article><span>今日日志</span><b>36</b><p>全部正常</p></article></div><div className="admin-rule"><p>模板版本</p><i></i><button>＋ 新建模板</button></div><div className="admin-template-list">{adminTemplates.map(template => <AdminTemplateRow key={`${template.name}-${template.version}`} template={template} />)}</div><div className="admin-log"><b>最新日志</b><span>林然发布《四季里的银杏》至公共空间 · 10:42</span><button>查看全部 →</button></div></section>}
+      {isAdminMembers && <section className="admin-view"><div className="admin-rule"><p>后台成员</p><i></i><button>＋ 添加成员</button></div><div className="platform-member-list">{platformMembers.map(member => <PlatformMemberRow key={member.email} member={member} />)}</div></section>}
+      {isAdminTemplates && <section className="admin-view"><div className="admin-rule"><p>封面模板</p><i></i><button>＋ 新建封面</button></div><div className="admin-template-list">{adminTemplates.slice(0, 2).map(template => <AdminTemplateRow key={`cover-${template.version}`} template={{ ...template, name: `${template.name} · 封面` }} />)}</div><div className="admin-rule spaced"><p>封底模板</p><i></i><button>＋ 新建封底</button></div><div className="admin-template-list">{adminTemplates.slice(0, 1).map(template => <AdminTemplateRow key={`back-${template.version}`} template={{ ...template, name: `${template.name} · 封底` }} />)}</div><div className="admin-rule spaced"><p>卡片模板</p><i></i><button>＋ 新建卡片版式</button></div><div className="admin-template-list">{adminTemplates.map(template => <AdminTemplateRow key={`card-${template.version}`} template={{ ...template, name: `${template.name} · 卡片` }} />)}</div></section>}
+      {isAdminLogs && <section className="admin-view"><div className="admin-rule"><p>操作日志</p><i></i><button>筛选 ▾</button></div><div className="admin-template-list"><div className="admin-log"><b>10:42</b><span>林然发布《四季里的银杏》至公共空间</span><button>详情 →</button></div><div className="admin-log"><b>09:16</b><span>周宁创建模板「城市漫游 · 横向册 v1.1」</span><button>详情 →</button></div><div className="admin-log"><b>昨天</b><span>陈雪将模板「自然观察 · 初版」设置为停用</span><button>详情 →</button></div></div></section>}
       {isComposerOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => setComposerOpen(false)}><form className="card-composer" onSubmit={(event) => { event.preventDefault(); saveCard(); }} onMouseDown={event => event.stopPropagation()}>
         <header><div><p>为 {child} 新建</p><h2>观察卡片</h2></div><button type="button" aria-label="关闭新建卡片" onClick={() => setComposerOpen(false)}>×</button></header>
         <label className="field-label">选择照片 <span>{draftPhotos.length}/4</span></label><div className="photo-picker">{photoChoices.map(photo => <button type="button" className={draftPhotos.includes(photo) ? "picked" : ""} key={photo} onClick={() => togglePhoto(photo)}><img src={imageUrl(photo, 180)} alt="" /><i>{draftPhotos.includes(photo) ? "✓" : "+"}</i></button>)}</div>
