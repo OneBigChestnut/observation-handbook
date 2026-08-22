@@ -30,6 +30,7 @@ type PublicHandbook = { title: string; introduction: string; family: string; chi
 type FamilyMemberSummary = { name: string; initial: string; role: "家庭管理员" | "只读成员"; joinedAt: string; color: string };
 type AdminTemplate = { name: string; version: string; usage: number; status: "已发布" | "已停用"; updatedAt: string };
 type PlatformMember = { name: string; email: string; role: "超级管理员" | "运营管理员"; initial: string };
+type FamilyAccount = { family: string; administrator: string; readers: number; children: number; updatedAt: string };
 
 const seedCards: Card[] = [
   { id: "1", date: "08.18", title: "银杏叶的边缘", note: "今天发现最外圈的叶子已经有一点点金黄。", tags: ["银杏", "夏末"], photos: ["photo-1502082553048-f009c37129b9", "photo-1523712999610-f77fbcfc3843"] },
@@ -83,6 +84,12 @@ const platformMembers: PlatformMember[] = [
   { name: "林然", email: "lin@example.com", role: "超级管理员", initial: "林" },
   { name: "周宁", email: "zhou@example.com", role: "运营管理员", initial: "周" },
   { name: "陈雪", email: "chen@example.com", role: "运营管理员", initial: "陈" },
+];
+
+const familyAccounts: FamilyAccount[] = [
+  { family: "林家档案室", administrator: "林然", readers: 2, children: 2, updatedAt: "今天 10:42" },
+  { family: "王家观察室", administrator: "王珂", readers: 1, children: 1, updatedAt: "昨天 18:16" },
+  { family: "陈家手册", administrator: "陈雪", readers: 3, children: 2, updatedAt: "08.15" },
 ];
 
 const photoChoices = ["photo-1502082553048-f009c37129b9", "photo-1511497584788-876760111969", "photo-1531219572328-a0171b4448a3", "photo-1497250681960-ef046c08a56e"];
@@ -141,6 +148,10 @@ function AdminTemplateRow({ template }: { template: AdminTemplate }) {
 
 function PlatformMemberRow({ member }: { member: PlatformMember }) {
   return <article className="platform-member-row"><span className="member-avatar green">{member.initial}</span><div><h2>{member.name}</h2><p>{member.email}</p></div><select defaultValue={member.role} aria-label={`${member.name} 的权限`}><option>超级管理员</option><option>运营管理员</option></select><button>重置密码</button><button className="delete-export">删除</button></article>;
+}
+
+function FamilyAccountRow({ account }: { account: FamilyAccount }) {
+  return <article className="family-account-row"><div><h2>{account.family}</h2><p>最近活动 · {account.updatedAt}</p></div><span><b>{account.administrator}</b> · 管理员</span><span>{account.readers} 位只读成人</span><span>{account.children} 位小朋友</span><button>管理账号 →</button></article>;
 }
 
 function App() {
@@ -239,7 +250,7 @@ function App() {
       {activeNav === "导出文件" && <section className="export-view">{exportNotice && <div className="export-success"><span>✓</span>{exportNotice}<button aria-label="关闭提示" onClick={() => setExportNotice("")}>×</button></div>}<div className="export-rule"><p>已生成文件</p><i></i><span>{exportFiles.length} 个文件</span></div><div className="export-list">{exportFiles.map(file => <ExportRow key={file.id} file={file} onDelete={id => setExportFiles(current => removeGeneratedExport(current, id))} onDownload={downloadExport} />)}</div></section>}
       {isPublicSpace && <section className="public-space-view"><div className="public-rule"><p>最新发布</p><i></i><span>全部公开手册</span></div><div className="public-handbook-grid">{publicHandbooks.map(handbook => <PublicHandbookTile key={handbook.title} handbook={handbook} />)}</div></section>}
       {isFamilyMembers && <section className="members-view"><div className="members-note"><b>成员权限</b><span>管理员可管理家庭、小朋友与发布；只读成员仅能查看。</span></div><div className="members-rule"><p>家庭成员</p><i></i><span>{familyMembers.length} 位成人</span></div><div className="members-list">{familyMembers.map(member => <FamilyMemberRow key={member.name} member={member} />)}</div></section>}
-      {isAdminMembers && <section className="admin-view"><div className="admin-rule"><p>后台成员</p><i></i><button>＋ 添加成员</button></div><div className="platform-member-list">{platformMembers.map(member => <PlatformMemberRow key={member.email} member={member} />)}</div></section>}
+      {isAdminMembers && <section className="admin-view"><div className="admin-rule"><p>后台成员</p><i></i><button>＋ 添加成员</button></div><div className="platform-member-list">{platformMembers.map(member => <PlatformMemberRow key={member.email} member={member} />)}</div><div className="admin-rule spaced"><p>家庭账号</p><i></i><button>搜索家庭</button></div><div className="family-account-list">{familyAccounts.map(account => <FamilyAccountRow key={account.family} account={account} />)}</div></section>}
       {isAdminTemplates && <section className="admin-view"><div className="admin-rule"><p>封面模板</p><i></i><button>＋ 新建封面</button></div><div className="admin-template-list">{adminTemplates.slice(0, 2).map(template => <AdminTemplateRow key={`cover-${template.version}`} template={{ ...template, name: `${template.name} · 封面` }} />)}</div><div className="admin-rule spaced"><p>封底模板</p><i></i><button>＋ 新建封底</button></div><div className="admin-template-list">{adminTemplates.slice(0, 1).map(template => <AdminTemplateRow key={`back-${template.version}`} template={{ ...template, name: `${template.name} · 封底` }} />)}</div><div className="admin-rule spaced"><p>卡片模板</p><i></i><button>＋ 新建卡片版式</button></div><div className="admin-template-list">{adminTemplates.map(template => <AdminTemplateRow key={`card-${template.version}`} template={{ ...template, name: `${template.name} · 卡片` }} />)}</div></section>}
       {isAdminLogs && <section className="admin-view"><div className="admin-rule"><p>操作日志</p><i></i><button>筛选 ▾</button></div><div className="admin-template-list"><div className="admin-log"><b>10:42</b><span>林然发布《四季里的银杏》至公共空间</span><button>详情 →</button></div><div className="admin-log"><b>09:16</b><span>周宁创建模板「城市漫游 · 横向册 v1.1」</span><button>详情 →</button></div><div className="admin-log"><b>昨天</b><span>陈雪将模板「自然观察 · 初版」设置为停用</span><button>详情 →</button></div></div></section>}
       {isComposerOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => setComposerOpen(false)}><form className="card-composer" onSubmit={(event) => { event.preventDefault(); saveCard(); }} onMouseDown={event => event.stopPropagation()}>
