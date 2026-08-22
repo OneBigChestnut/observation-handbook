@@ -4,9 +4,9 @@
 
 **Goal:** 建立可本地运行的 API、SQLite 数据库、账号密码登录、会话、家庭成员和小朋友资源范围校验，使后续观察内容不再依赖浏览器内存状态。
 
-**Architecture:** 新增 `apps/api` Fastify 服务，采用 Prisma + SQLite 保存账户、会话、家庭、家庭成员、小朋友和审计日志。服务端将当前会话解析为 `RequestActor`，所有家庭与小朋友 API 都通过该对象校验权限。前端保留现有视觉壳层，先接入登录和当前家庭/小朋友读取，不迁移卡片、标签、手册或 PDF。
+**Architecture:** 新增 `apps/api` Fastify 服务，采用 Drizzle ORM + SQLite 保存账户、会话、家庭、家庭成员、小朋友和审计日志。服务端将当前会话解析为 `RequestActor`，所有家庭与小朋友 API 都通过该对象校验权限。前端保留现有视觉壳层，先接入登录和当前家庭/小朋友读取，不迁移卡片、标签、手册或 PDF。
 
-**Tech Stack:** TypeScript、Fastify、Prisma、SQLite、Node `crypto.scrypt`、React、Vite、Vitest。
+**Tech Stack:** TypeScript、Fastify、Drizzle ORM、`better-sqlite3`、SQLite、Node `crypto.scrypt`、React、Vite、Vitest。
 
 **Spec:** `docs/superpowers/specs/2026-08-22-authenticated-observation-platform-design.md`
 
@@ -19,6 +19,10 @@
 - 密码只保存 `scrypt` 派生哈希；会话令牌只存哈希，浏览器只接收 `httpOnly` Cookie。
 - 本计划不导入旧项目或原型运行数据；仅提供明确标注为开发环境的种子账户。
 - 不使用多智能体；实施、测试和审查均在当前会话顺序进行。
+
+## ORM Amendment
+
+2026-08-22 经确认，所有本计划中出现的 Prisma、`prisma` 变量、`schema.prisma`、`prisma migrate` 和 Prisma Client 均由 Drizzle ORM 替代。数据库实现固定为 `drizzle-orm` + `better-sqlite3`，迁移由 `drizzle-kit generate` 和 `drizzle-kit migrate` 执行；连接、事务与查询使用 `Database`/`DrizzleDatabase`，不使用 Prisma 运行时或引擎。此修订优先于下方保留的原始任务文字；执行时应按 Drizzle 的 `sqliteTable` schema 定义同等实体与约束，保持所有已列出的业务规则和测试结果不变。
 
 ## Planned File Structure
 

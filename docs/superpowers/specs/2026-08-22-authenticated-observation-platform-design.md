@@ -16,7 +16,7 @@
 
 ## 运行架构
 
-保留 Vite + React 作为前端，增加同仓库的 Fastify API 服务。API 使用 Prisma 访问 SQLite；照片原图和缩略图保存在本地受控媒体目录，数据库只保存文件元数据和路径。以后迁移到 PostgreSQL 时仅替换数据库配置与迁移流程，不改变业务接口。
+保留 Vite + React 作为前端，增加同仓库的 Fastify API 服务。API 使用 Drizzle ORM 访问 SQLite；照片原图和缩略图保存在本地受控媒体目录，数据库只保存文件元数据和路径。以后迁移到 PostgreSQL 时仅替换 Drizzle 驱动、数据库配置与迁移流程，不改变业务接口。
 
 浏览器不再保存权威业务数据，也不自行决定权限。每个写入请求由服务端根据会话、家庭成员关系和资源归属复核。前端只通过 API 获得当前账户有权访问的数据。
 
@@ -25,7 +25,7 @@ React / Vite
   └─ HTTPS/HTTP API + 会话 Cookie
        └─ Fastify
            ├─ 权限与资源范围校验
-           ├─ Prisma + SQLite
+           ├─ Drizzle ORM + SQLite
            ├─ 本地原图 / 缩略图媒体目录
            └─ PDF 生成与导出快照目录
 ```
