@@ -29,6 +29,11 @@ export function retireTemplateVersion(input: { usageCount: number }): { state: "
   return { state: "retired" };
 }
 
+export function getTemplateRemovalAction(usageCount: number): "delete" | "retire" {
+  if (!Number.isInteger(usageCount) || usageCount < 0) throw new Error("usage count must be a non-negative integer");
+  return usageCount === 0 ? "delete" : "retire";
+}
+
 export type CardTemplateCategory = "one_photo" | "two_photos" | "three_photos" | "four_photos";
 
 export function getCardTemplateCategory(photoCount: number): CardTemplateCategory {

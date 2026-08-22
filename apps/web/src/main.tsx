@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { createGeneratedExport, createObservationCard, DEFAULT_CARD_VIEW, removeGeneratedExport, type CardView, type PdfExportKind } from "@observation-handbook/domain";
+import { createGeneratedExport, createObservationCard, DEFAULT_CARD_VIEW, getTemplateRemovalAction, removeGeneratedExport, type CardView, type PdfExportKind } from "@observation-handbook/domain";
 import "./styles.css";
 
 type Card = {
@@ -35,6 +35,7 @@ type AdminTemplate = { name: string; version: string; usage: number; status: "�
 type PlatformMember = { name: string; email: string; role: "超级管理员" | "运营管理员"; initial: string };
 type FamilyAccount = { family: string; administrator: string; readers: number; children: number; updatedAt: string };
 type TemplateGroup = { id: string; paper: "A4" | "A5"; type: string; templateCount: number };
+type TemplateVersion = { id: string; name: string; usageCount: number; status: "已发布" | "已停用" };
 
 const seedCards: Card[] = [
   { id: "1", date: "08.18", title: "银杏叶的边缘", note: "今天发现最外圈的叶子已经有一点点金黄。", tags: ["银杏", "夏末"], photos: ["photo-1502082553048-f009c37129b9", "photo-1523712999610-f77fbcfc3843"] },
@@ -110,6 +111,13 @@ const templateGroups: TemplateGroup[] = [
   { id: "a5-card-3", paper: "A5", type: "卡片 · 3 张照片", templateCount: 4 },
   { id: "a5-card-4", paper: "A5", type: "卡片 · 4 张照片", templateCount: 3 },
 ];
+
+const initialTemplateVersions: Record<string, TemplateVersion[]> = Object.fromEntries(templateGroups.map(group => [group.id, Array.from({ length: group.templateCount }, (_, index) => ({
+  id: `${group.id}-${index + 1}`,
+  name: `${group.type.includes("卡片") ? "卡片版式" : group.type} ${String.fromCharCode(65 + index)}`,
+  usageCount: index === 0 ? 12 : 0,
+  status: "已发布" as const,
+}))]));
 
 const photoChoices = ["photo-1502082553048-f009c37129b9", "photo-1511497584788-876760111969", "photo-1531219572328-a0171b4448a3", "photo-1497250681960-ef046c08a56e"];
 const handbookTemplatesByPaper = {
@@ -193,6 +201,10 @@ function App() {
   const [selectedBackTemplate, setSelectedBackTemplate] = useState("A4 竖版 · 标准封底");
   const [selectedTemplateGroupId, setSelectedTemplateGroupId] = useState("a5-card-3");
   const [templatePaperFilter, setTemplatePaperFilter] = useState<"全部" | "A4" | "A5">("全部");
+  const [templateVersions, setTemplateVersions] = useState(initialTemplateVersions);
+  const [templateNotice, setTemplateNotice] = useState("");
+  const [templateEditor, setTemplateEditor] = useState<{ groupId: string; versionId: string } | null>(null);
+  const [templateVersionName, setTemplateVersionName] = useState("");
   const [handbookItems, setHandbookItems] = useState(handbooks);
   const [handbookTitle, setHandbookTitle] = useState("");
   const [handbookIntroduction, setHandbookIntroduction] = useState("");
@@ -212,11 +224,40 @@ function App() {
   const isAdminTemplates = activeNav === "模板管理";
   const isAdminLogs = activeNav === "日志查看";
   const isAdminCenter = isAdminMembers || isAdminTemplates || isAdminLogs;
-  const visibleTemplateGroups = templatePaperFilter === "全部" ? templateGroups : templateGroups.filter(group => group.paper === templatePaperFilter);
+  const templateGroupsWithVersions = templateGroups.map(group => ({ ...group, templateCount: templateVersions[group.id]?.length ?? 0 }));
+  const visibleTemplateGroups = templatePaperFilter === "全部" ? templateGroupsWithVersions : templateGroupsWithVersions.filter(group => group.paper === templatePaperFilter);
   const selectedTemplateGroup = visibleTemplateGroups.find(group => group.id === selectedTemplateGroupId) ?? visibleTemplateGroups[0];
+  const selectedTemplateVersions = templateVersions[selectedTemplateGroup.id] ?? [];
   const actionLabel = isRecordView ? "新建记录" : activeNav === "标签管理" ? "新建标签" : activeNav === "导出文件" ? "导出手册" : "新建手册";
   const togglePhoto = (photo: string) => setDraftPhotos(current => current.includes(photo) ? current.filter(item => item !== photo) : current.length < 4 ? [...current, photo] : current);
   const toggleTag = (tag: string) => setDraftTags(current => current.includes(tag) ? current.filter(item => item !== tag) : [...current, tag]);
+  const addTemplateVersion = () => {
+    const groupId = selectedTemplateGroup.id;
+    setTemplateVersions(current => {
+      const versions = current[groupId] ?? [];
+      const nextVersion = { id: `${groupId}-${Date.now()}`, name: `${selectedTemplateGroup.type.includes("卡片") ? "卡片版式" : selectedTemplateGroup.type} ${String.fromCharCode(65 + versions.length)}`, usageCount: 0, status: "已发布" as const };
+      return { ...current, [groupId]: [...versions, nextVersion] };
+    });
+    setTemplateNotice(`已在「${selectedTemplateGroup.paper} · ${selectedTemplateGroup.type}」新增一套未使用模板。`);
+  };
+  const openTemplateEditor = (version: TemplateVersion) => { setTemplateEditor({ groupId: selectedTemplateGroup.id, versionId: version.id }); setTemplateVersionName(version.name); };
+  const saveTemplateVersion = () => {
+    if (!templateEditor) return;
+    const name = templateVersionName.trim() || "未命名模板";
+    setTemplateVersions(current => ({ ...current, [templateEditor.groupId]: current[templateEditor.groupId].map(version => version.id === templateEditor.versionId ? { ...version, name } : version) }));
+    setTemplateNotice("模板名称已更新。");
+    setTemplateEditor(null);
+  };
+  const removeTemplateVersion = (version: TemplateVersion) => {
+    const action = getTemplateRemovalAction(version.usageCount);
+    if (action === "retire") {
+      setTemplateVersions(current => ({ ...current, [selectedTemplateGroup.id]: current[selectedTemplateGroup.id].map(item => item.id === version.id ? { ...item, status: "已停用" } : item) }));
+      setTemplateNotice(`「${version.name}」已有使用记录，已停用以保持既有手册兼容。`);
+      return;
+    }
+    setTemplateVersions(current => ({ ...current, [selectedTemplateGroup.id]: current[selectedTemplateGroup.id].filter(item => item.id !== version.id) }));
+    setTemplateNotice(`已删除未使用的模板「${version.name}」。`);
+  };
   const saveCard = () => {
     const created = createObservationCard({ childId: child, photos: draftPhotos, text: draftText.trim() });
     setCardItems(current => [{ id: String(Date.now()), date: "08.21", title: created.text.slice(0, 12) || "新的观察", note: created.text || "今天的观察。", tags: draftTags, photos: created.photos }, ...current]);
@@ -288,7 +329,7 @@ function App() {
       {isPublicSpace && <section className="public-space-view"><div className="public-rule"><p>最新发布</p><i></i><span>全部公开手册</span></div><div className="public-handbook-grid">{publicHandbooks.map(handbook => <PublicHandbookTile key={handbook.title} handbook={handbook} />)}</div></section>}
       {isFamilyMembers && <section className="members-view"><div className="members-note"><b>成员权限</b><span>管理员可管理家庭、小朋友与发布；只读成员仅能查看。</span></div><div className="members-rule"><p>家庭成员</p><i></i><span>{familyMembers.length} 位成人</span></div><div className="members-list">{familyMembers.map(member => <FamilyMemberRow key={member.name} member={member} />)}</div></section>}
       {isAdminMembers && <section className="admin-view"><div className="admin-rule"><p>后台成员</p><i></i><button>＋ 添加成员</button></div><div className="platform-member-list">{platformMembers.map(member => <PlatformMemberRow key={member.email} member={member} />)}</div><div className="admin-rule spaced"><p>家庭账号</p><i></i><button>搜索家庭</button></div><div className="family-account-list">{familyAccounts.map(account => <FamilyAccountRow key={account.family} account={account} />)}</div></section>}
-      {isAdminTemplates && <section className="admin-view template-management"><div className="admin-rule template-filter"><p>模板范围</p><i></i><label htmlFor="template-paper-filter">纸张大小</label><select id="template-paper-filter" value={templatePaperFilter} onChange={event => { const paper = event.target.value as "全部" | "A4" | "A5"; setTemplatePaperFilter(paper); const firstGroup = paper === "全部" ? templateGroups[0] : templateGroups.find(group => group.paper === paper); if (firstGroup) setSelectedTemplateGroupId(firstGroup.id); }}><option value="全部">全部规格</option><option value="A4">A4 · 竖版</option><option value="A5">A5 · 竖版</option></select></div><div className="template-table-wrap"><table><thead><tr><th>纸张大小</th><th>模板类型</th><th>模板套数</th><th>方向</th></tr></thead><tbody>{visibleTemplateGroups.map(group => <tr key={group.id} className={selectedTemplateGroup.id === group.id ? "selected" : ""} onClick={() => setSelectedTemplateGroupId(group.id)}><td>{group.paper}</td><td>{group.type}</td><td><b>{group.templateCount}</b> 套</td><td>竖版</td></tr>)}</tbody></table></div><div className="admin-rule spaced"><p>{selectedTemplateGroup.paper} 竖版 · {selectedTemplateGroup.type}</p><i></i><span>{selectedTemplateGroup.templateCount} 套模板</span><button>＋ 新建模板</button></div><div className="template-gallery">{Array.from({ length: selectedTemplateGroup.templateCount }, (_, index) => <article key={index} className={`template-thumbnail photos-${selectedTemplateGroup.type.includes("卡片") ? selectedTemplateGroup.type.match(/[1-4]/)?.[0] : "cover"}`}><div className="thumbnail-paper"><span>{selectedTemplateGroup.paper}</span><b>{selectedTemplateGroup.type.includes("封面") ? "观察手册" : selectedTemplateGroup.type.includes("封底") ? "档案终页" : `版式 ${String.fromCharCode(65 + index)}`}</b><i></i></div><footer><strong>{selectedTemplateGroup.type.includes("卡片") ? `卡片版式 ${String.fromCharCode(65 + index)}` : `${selectedTemplateGroup.type} ${String.fromCharCode(65 + index)}`}</strong><button>编辑</button><button className="delete-export">删除</button></footer></article>)}</div></section>}
+      {isAdminTemplates && <section className="admin-view template-management">{templateNotice && <div className="export-success"><span>✓</span>{templateNotice}<button aria-label="关闭提示" onClick={() => setTemplateNotice("")}>×</button></div>}<div className="admin-rule template-filter"><p>模板范围</p><i></i><label htmlFor="template-paper-filter">纸张大小</label><select id="template-paper-filter" value={templatePaperFilter} onChange={event => { const paper = event.target.value as "全部" | "A4" | "A5"; setTemplatePaperFilter(paper); const firstGroup = paper === "全部" ? templateGroupsWithVersions[0] : templateGroupsWithVersions.find(group => group.paper === paper); if (firstGroup) setSelectedTemplateGroupId(firstGroup.id); }}><option value="全部">全部规格</option><option value="A4">A4 · 竖版</option><option value="A5">A5 · 竖版</option></select></div><div className="template-table-wrap"><table><thead><tr><th>纸张大小</th><th>模板类型</th><th>模板套数</th><th>方向</th></tr></thead><tbody>{visibleTemplateGroups.map(group => <tr key={group.id} className={selectedTemplateGroup.id === group.id ? "selected" : ""} onClick={() => setSelectedTemplateGroupId(group.id)}><td>{group.paper}</td><td>{group.type}</td><td><b>{group.templateCount}</b> 套</td><td>竖版</td></tr>)}</tbody></table></div><div className="admin-rule spaced"><p>{selectedTemplateGroup.paper} 竖版 · {selectedTemplateGroup.type}</p><i></i><span>{selectedTemplateGroup.templateCount} 套模板</span><button onClick={addTemplateVersion}>＋ 新建模板</button></div><div className="template-gallery">{selectedTemplateVersions.map((version, index) => <article key={version.id} className={`template-thumbnail photos-${selectedTemplateGroup.type.includes("卡片") ? selectedTemplateGroup.type.match(/[1-4]/)?.[0] : "cover"}`}><div className="thumbnail-paper"><span>{selectedTemplateGroup.paper}</span><b>{selectedTemplateGroup.type.includes("封面") ? "观察手册" : selectedTemplateGroup.type.includes("封底") ? "档案终页" : `版式 ${String.fromCharCode(65 + index)}`}</b><i></i></div><footer><strong>{version.name}</strong><span className={version.status === "已停用" ? "template-retired" : "template-version-status"}>{version.status === "已停用" ? "已停用" : version.usageCount > 0 ? `${version.usageCount} 次使用` : "未使用"}</span><button onClick={() => openTemplateEditor(version)}>编辑</button><button className="delete-export" onClick={() => removeTemplateVersion(version)}>{version.usageCount > 0 ? "停用" : "删除"}</button></footer></article>)}</div></section>}
       {isAdminLogs && <section className="admin-view"><div className="admin-rule"><p>操作日志</p><i></i><button>筛选 ▾</button></div><div className="admin-template-list"><div className="admin-log"><b>10:42</b><span>林然发布《四季里的银杏》至公共空间</span><button>详情 →</button></div><div className="admin-log"><b>09:16</b><span>周宁创建模板「城市漫游 · 横向册 v1.1」</span><button>详情 →</button></div><div className="admin-log"><b>昨天</b><span>陈雪将模板「自然观察 · 初版」设置为停用</span><button>详情 →</button></div></div></section>}
       {isComposerOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => setComposerOpen(false)}><form className="card-composer" onSubmit={(event) => { event.preventDefault(); saveCard(); }} onMouseDown={event => event.stopPropagation()}>
         <header><div><p>为 {child} 新建</p><h2>观察卡片</h2></div><button type="button" aria-label="关闭新建卡片" onClick={() => setComposerOpen(false)}>×</button></header>
@@ -300,6 +341,7 @@ function App() {
       </form></div>}
       {isExportDialogOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => setExportDialogOpen(false)}><form className="export-dialog" onSubmit={(event) => { event.preventDefault(); generateExport(); }} onMouseDown={event => event.stopPropagation()}><header><div><p>生成新文件</p><h2>导出手册</h2></div><button type="button" aria-label="关闭导出手册" onClick={() => setExportDialogOpen(false)}>×</button></header><label className="field-label" htmlFor="export-handbook">选择观察手册</label><select id="export-handbook" value={selectedHandbookId} onChange={event => setSelectedHandbookId(event.target.value)}>{handbookItems.map(handbook => <option value={handbook.id} key={handbook.id}>{handbook.title} · {handbook.cardCount} 张卡片</option>)}</select><span className="field-label">选择 PDF 类型</span><div className="pdf-kind-options"><label className={selectedPdfKind === "screen" ? "selected" : ""}><input type="radio" checked={selectedPdfKind === "screen"} onChange={() => setSelectedPdfKind("screen")} name="pdf-kind" /> <b>屏幕 PDF</b><span>电脑、手机、平板查看；无出血、无裁切线。</span></label><label className={selectedPdfKind === "print" ? "selected" : ""}><input type="radio" checked={selectedPdfKind === "print"} onChange={() => setSelectedPdfKind("print")} name="pdf-kind" /> <b>印刷 PDF</b><span>3mm 出血、裁切线；生成前执行印刷预检。</span></label></div><footer><button type="button" onClick={() => setExportDialogOpen(false)}>取消</button><button className="save-card" type="submit">确认生成</button></footer></form></div>}
       {isHandbookDialogOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => setHandbookDialogOpen(false)}><form className="export-dialog" onSubmit={event => { event.preventDefault(); const title = handbookTitle.trim() || "未命名观察手册"; const completedAt = handbookCompletedAt ? handbookCompletedAt.replaceAll("-", ".") : undefined; const handbookId = `handbook-${Date.now()}`; setHandbookItems(current => [{ id: handbookId, title, introduction: handbookIntroduction.trim() || "一册持续生长的观察。", startedAt: "2026.08.22", completedAt, updatedAt: "刚刚", cardCount: 0, cover: handbookCover, status: completedAt ? "已完成" : "持续观察", paperSize: handbookPaperSize, coverTemplate: selectedCoverTemplate, backTemplate: selectedBackTemplate }, ...current]); setSelectedHandbookId(handbookId); setHandbookTitle(""); setHandbookIntroduction(""); setHandbookCompletedAt(""); setHandbookCover(photoChoices[0]); setHandbookDialogOpen(false); }} onMouseDown={event => event.stopPropagation()}><header><div><p>新建观察手册</p><h2>手册信息与装帧</h2></div><button type="button" aria-label="关闭新建手册" onClick={() => setHandbookDialogOpen(false)}>×</button></header><label className="field-label" htmlFor="handbook-title">手册名称</label><input id="handbook-title" value={handbookTitle} onChange={event => setHandbookTitle(event.target.value)} placeholder="例如：银杏的一年" /><label className="field-label" htmlFor="handbook-introduction">内容介绍</label><textarea id="handbook-introduction" value={handbookIntroduction} onChange={event => setHandbookIntroduction(event.target.value)} placeholder="这一册想持续观察什么？" rows={2} /><label className="field-label" htmlFor="handbook-paper">纸张大小</label><select id="handbook-paper" value={handbookPaperSize} onChange={event => { const paper = event.target.value as "A4" | "A5"; setHandbookPaperSize(paper); setSelectedCoverTemplate(handbookTemplatesByPaper[paper].covers[0]); setSelectedBackTemplate(handbookTemplatesByPaper[paper].backs[0]); }}><option value="A4">A4 · 竖版</option><option value="A5">A5 · 竖版</option></select><label className="field-label" htmlFor="handbook-completed-at">完成时间 <small>可留空</small></label><input id="handbook-completed-at" type="date" value={handbookCompletedAt} onChange={event => setHandbookCompletedAt(event.target.value)} /><label className="field-label" htmlFor="handbook-cover">封面照片</label><select id="handbook-cover" value={handbookCover} onChange={event => setHandbookCover(event.target.value)}>{photoChoices.map((photo, index) => <option key={photo} value={photo}>观察照片 {index + 1}</option>)}</select><label className="field-label" htmlFor="cover-template">封面模板</label><select id="cover-template" value={selectedCoverTemplate} onChange={event => setSelectedCoverTemplate(event.target.value)}>{handbookTemplatesByPaper[handbookPaperSize].covers.map(template => <option value={template} key={template}>{template}</option>)}</select><label className="field-label" htmlFor="back-template">封底模板</label><select id="back-template" value={selectedBackTemplate} onChange={event => setSelectedBackTemplate(event.target.value)}>{handbookTemplatesByPaper[handbookPaperSize].backs.map(template => <option value={template} key={template}>{template}</option>)}</select><p className="dialog-note">纸张规格一经创建即固定；封面、封底和后续卡片仅可使用相同规格的竖版模板。</p><footer><button type="button" onClick={() => setHandbookDialogOpen(false)}>取消</button><button className="save-card" type="submit">创建手册</button></footer></form></div>}
+      {templateEditor && <div className="composer-backdrop" role="presentation" onMouseDown={() => setTemplateEditor(null)}><form className="export-dialog" onSubmit={event => { event.preventDefault(); saveTemplateVersion(); }} onMouseDown={event => event.stopPropagation()}><header><div><p>模板版本</p><h2>编辑模板</h2></div><button type="button" aria-label="关闭编辑模板" onClick={() => setTemplateEditor(null)}>×</button></header><label className="field-label" htmlFor="template-version-name">模板名称</label><input id="template-version-name" value={templateVersionName} onChange={event => setTemplateVersionName(event.target.value)} /><p className="dialog-note">版式所属纸张大小和模板类型不能在此修改，以保持已创建手册的版面规则。</p><footer><button type="button" onClick={() => setTemplateEditor(null)}>取消</button><button className="save-card" type="submit">保存修改</button></footer></form></div>}
     </main>
   </div>;
 }
