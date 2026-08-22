@@ -1,5 +1,6 @@
 export type ApiConfig = {
   databaseUrl: string;
+  mediaDirectory: string;
   sessionCookie: {
     name: string;
     httpOnly: true;
@@ -17,6 +18,7 @@ export function getApiConfig(env: NodeJS.ProcessEnv): ApiConfig {
 
   return {
     databaseUrl: env.DATABASE_URL ?? "file:./data/dev.db",
+    mediaDirectory: env.MEDIA_DIR ?? "./data/media",
     sessionCookie: {
       name: "observation_session",
       httpOnly: true,
