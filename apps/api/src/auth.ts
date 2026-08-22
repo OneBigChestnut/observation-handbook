@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, ne } from "drizzle-orm";
 import type { AppDatabase } from "./db/client.js";
 import { accounts, familyMemberships, sessions } from "./db/schema.js";
 
@@ -46,6 +46,17 @@ export async function getActorFromToken(database: AppDatabase, rawToken: string,
     platformRole: account.platformRole,
     memberships,
   };
+}
+
+export async function removeSession(database: AppDatabase, rawToken: string): Promise<void> {
+  await database.delete(sessions).where(eq(sessions.tokenHash, hashSessionToken(rawToken)));
+}
+
+export async function removeOtherSessions(database: AppDatabase, accountId: string, currentRawToken: string): Promise<void> {
+  await database.delete(sessions).where(and(
+    eq(sessions.accountId, accountId),
+    ne(sessions.tokenHash, hashSessionToken(currentRawToken)),
+  ));
 }
 
 function hashSessionToken(rawToken: string): string {
