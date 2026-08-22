@@ -35,6 +35,68 @@ export const children = sqliteTable("children", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 }, table => [uniqueIndex("children_family_name_unique").on(table.familyId, table.name)]);
 
+export const mediaAssets = sqliteTable("media_assets", {
+  id: text("id").primaryKey(),
+  childId: text("child_id").notNull().references(() => children.id, { onDelete: "cascade" }),
+  originalPath: text("original_path").notNull(),
+  thumbnailPath: text("thumbnail_path").notNull(),
+  mimeType: text("mime_type").notNull(),
+  width: integer("width").notNull(),
+  height: integer("height").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+}, table => [index("media_assets_child_created_index").on(table.childId, table.createdAt)]);
+
+export const observationCards = sqliteTable("observation_cards", {
+  id: text("id").primaryKey(),
+  childId: text("child_id").notNull().references(() => children.id, { onDelete: "cascade" }),
+  observedAt: text("observed_at").notNull(),
+  text: text("text").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+}, table => [index("observation_cards_child_observed_index").on(table.childId, table.observedAt)]);
+
+export const cardPhotos = sqliteTable("card_photos", {
+  cardId: text("card_id").notNull().references(() => observationCards.id, { onDelete: "cascade" }),
+  mediaAssetId: text("media_asset_id").notNull().references(() => mediaAssets.id, { onDelete: "restrict" }),
+  position: integer("position").notNull(),
+}, table => [primaryKey({ columns: [table.cardId, table.mediaAssetId] }), uniqueIndex("card_photos_card_position_unique").on(table.cardId, table.position)]);
+
+export const tags = sqliteTable("tags", {
+  id: text("id").primaryKey(),
+  childId: text("child_id").notNull().references(() => children.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  color: text("color").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+}, table => [uniqueIndex("tags_child_name_unique").on(table.childId, table.name), index("tags_child_created_index").on(table.childId, table.createdAt)]);
+
+export const cardTags = sqliteTable("card_tags", {
+  cardId: text("card_id").notNull().references(() => observationCards.id, { onDelete: "cascade" }),
+  tagId: text("tag_id").notNull().references(() => tags.id, { onDelete: "cascade" }),
+}, table => [primaryKey({ columns: [table.cardId, table.tagId] })]);
+
+export const handbooks = sqliteTable("handbooks", {
+  id: text("id").primaryKey(),
+  childId: text("child_id").notNull().references(() => children.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  introduction: text("introduction").notNull(),
+  startedAt: text("started_at").notNull(),
+  completedAt: text("completed_at"),
+  visibility: text("visibility", { enum: ["family", "public"] }).notNull().default("family"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+}, table => [index("handbooks_child_updated_index").on(table.childId, table.updatedAt)]);
+
+export const handbookCards = sqliteTable("handbook_cards", {
+  handbookId: text("handbook_id").notNull().references(() => handbooks.id, { onDelete: "cascade" }),
+  cardId: text("card_id").notNull().references(() => observationCards.id, { onDelete: "cascade" }),
+  position: integer("position").notNull(),
+}, table => [primaryKey({ columns: [table.handbookId, table.cardId] }), uniqueIndex("handbook_cards_handbook_position_unique").on(table.handbookId, table.position)]);
+
+export const handbookTags = sqliteTable("handbook_tags", {
+  handbookId: text("handbook_id").notNull().references(() => handbooks.id, { onDelete: "cascade" }),
+  tagId: text("tag_id").notNull().references(() => tags.id, { onDelete: "cascade" }),
+}, table => [primaryKey({ columns: [table.handbookId, table.tagId] })]);
+
 export const auditLogs = sqliteTable("audit_logs", {
   id: text("id").primaryKey(),
   actorId: text("actor_id").references(() => accounts.id, { onDelete: "set null" }),
