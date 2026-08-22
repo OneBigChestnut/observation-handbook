@@ -29,6 +29,19 @@ export function retireTemplateVersion(input: { usageCount: number }): { state: "
   return { state: "retired" };
 }
 
+export type CardTemplateCategory = "one_photo" | "two_photos" | "three_photos" | "four_photos";
+
+export function getCardTemplateCategory(photoCount: number): CardTemplateCategory {
+  if (!Number.isInteger(photoCount) || photoCount < 1 || photoCount > CARD_PHOTO_LIMIT) {
+    throw new Error("card template photo count must be between 1 and 4");
+  }
+  return ["one_photo", "two_photos", "three_photos", "four_photos"][photoCount - 1] as CardTemplateCategory;
+}
+
+export function assertPortraitTemplate(orientation: "portrait" | "landscape"): void {
+  if (orientation !== "portrait") throw new Error("only portrait templates are supported");
+}
+
 export type FamilyRole = "family_admin" | "family_reader";
 export type FamilyMember = { accountId: string; role: FamilyRole };
 
