@@ -78,11 +78,10 @@
 
 **Produces:** `PATCH /api/cards/:cardId`, soft archive/delete with handbook reference checks, explicit handbook card reorder, and completion-state UI.
 
-- [ ] Write tests proving reader mutation is 403, foreign-child mutation is 403, a referenced card cannot be permanently removed, and a reordered handbook persists its positions.
-- [ ] Run `pnpm --filter @observation-handbook/api test -- observation-lifecycle.spec.ts`; confirm failure.
-- [ ] Implement `active | archived | deleted` card state, audit rows, `affectedHandbookIds`, and explicit `cardIds` order replacement in one database transaction.
-- [ ] Write web tests proving archived cards leave normal lists and “完成观察” writes `completedAt` without changing selected cards.
-- [ ] Run API/web focused tests, then commit `feat: complete observation content lifecycle`.
+- [x] Write tests proving reader mutation is 403, foreign-child mutation is 403, a referenced card cannot be archived, and a reordered handbook persists its positions.
+- [x] Implement active/archived card state, audit rows, `affectedHandbookIds`, and explicit `cardIds` order replacement.
+- [x] Write web tests proving archived cards leave normal lists and “完成观察” writes `completedAt` without changing selected cards.
+- [x] Run API/web tests, typecheck, production build, and diff check.
 
 **Gate:** the administrator can safely edit/archive a card, see affected handbooks before destructive action, reorder a handbook, and mark its observation complete; readers cannot mutate any item.
 
@@ -185,7 +184,7 @@
 - Report only two percentages: **implementation branch completion** and **`main` deliverable completion**.
 - A stage counts only after its acceptance gate passes and its commit is present on `main`.
 - Do not count visual prototypes, uncommitted code, unchecked historical-plan tasks, or inherited old-project functionality.
-- Current baseline: Stage 0 is in progress; Stage 1–6 are not started. Until Stage 0 merges, report the implementation branch as **35%** and `main` as **15%**.
+- Current baseline: Stages 0–1 are merged on `main`; Stages 2–6 are not started. Report the implementation branch and `main` deliverable as **40%**.
 
 ## Self-Review
 

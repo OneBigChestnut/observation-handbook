@@ -1,5 +1,5 @@
 export class ApiError extends Error {
-  constructor(public readonly status: number, public readonly code: string) {
+  constructor(public readonly status: number, public readonly code: string, public readonly details: Record<string, unknown> = {}) {
     super(code);
   }
 }
@@ -30,7 +30,7 @@ export type ObservationCardSummary = {
 };
 
 export type TagSummary = { id: string; name: string; color: string; cardCount: number };
-export type HandbookSummary = { id: string; title: string; introduction: string; startedAt: string; completedAt: string | null; status: "ongoing" | "completed"; cardCount: number; tagCount: number };
+export type HandbookSummary = { id: string; title: string; introduction: string; startedAt: string; completedAt: string | null; status: "ongoing" | "completed"; cardCount: number; tagCount: number; cardIds: string[]; tagIds: string[] };
 export type CreateHandbookPayload = {
   title: string;
   introduction: string;
@@ -48,9 +48,10 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { ...(isFormData ? {} : { "content-type": "application/json" }), ...init?.headers },
   });
   if (!response.ok) {
-    const body = await response.json().catch(() => ({ code: "REQUEST_FAILED" })) as { code?: string };
-    throw new ApiError(response.status, body.code ?? "REQUEST_FAILED");
+    const body = await response.json().catch(() => ({ code: "REQUEST_FAILED" })) as Record<string, unknown>;
+    throw new ApiError(response.status, typeof body.code === "string" ? body.code : "REQUEST_FAILED", body);
   }
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -63,8 +64,11 @@ export const apiClient = {
   handbooks: (childId: string) => request<{ handbooks: HandbookSummary[] }>(`/api/children/${childId}/handbooks`).then(response => response.handbooks),
   uploadMedia: (childId: string, file: File) => { const form = new FormData(); form.append("file", file); return request<{ media: { id: string } }>(`/api/children/${childId}/media`, { method: "POST", body: form }).then(response => response.media); },
   createCard: (childId: string, payload: { observedAt: string; text: string; mediaAssetIds: string[]; tagNames: string[] }) => request<{ card: { id: string } }>(`/api/children/${childId}/cards`, { method: "POST", body: JSON.stringify(payload) }).then(response => response.card),
+  updateCard: (cardId: string, payload: { observedAt?: string; text?: string }) => request<{ card: ObservationCardSummary }>(`/api/cards/${cardId}`, { method: "PATCH", body: JSON.stringify(payload) }).then(response => response.card),
+  archiveCard: (cardId: string) => request<void>(`/api/cards/${cardId}`, { method: "DELETE" }),
   createTag: (childId: string, payload: { name: string; color: string }) => request<{ tag: { id: string } }>(`/api/children/${childId}/tags`, { method: "POST", body: JSON.stringify(payload) }).then(response => response.tag),
   createHandbook: (childId: string, payload: CreateHandbookPayload) => request<{ handbook: { id: string } }>(`/api/children/${childId}/handbooks`, { method: "POST", body: JSON.stringify(payload) }).then(response => response.handbook),
+  updateHandbook: (handbookId: string, payload: Partial<CreateHandbookPayload>) => request<{ handbook: HandbookSummary }>(`/api/handbooks/${handbookId}`, { method: "PATCH", body: JSON.stringify(payload) }).then(response => response.handbook),
   workspace: async (): Promise<Workspace> => {
     const [session, familyResponse] = await Promise.all([apiClient.me(), apiClient.currentFamilies()]);
     return { account: { id: session.accountId, username: session.username, platformRole: session.platformRole }, families: familyResponse.families };

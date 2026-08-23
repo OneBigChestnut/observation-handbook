@@ -42,6 +42,12 @@ describe("observation api", () => {
     expect(listedTags.json().tags).toEqual(expect.arrayContaining([expect.objectContaining({ name: "银杏", cardCount: 1 }), expect.objectContaining({ name: "自然", cardCount: 0 })]));
     expect(readerWrite.statusCode).toBe(403);
     expect(foreignMedia.statusCode).toBe(403);
+    const readerEdit = await app.inject({ method: "PATCH", url: `/api/cards/${created.json().card.id}`, headers: { cookie: readerLogin.headers["set-cookie"] as string }, payload: { text: "不能改" } });
+    const readerArchive = await app.inject({ method: "DELETE", url: `/api/cards/${created.json().card.id}`, headers: { cookie: readerLogin.headers["set-cookie"] as string } });
+    const foreignEdit = await app.inject({ method: "PATCH", url: `/api/cards/${created.json().card.id}`, headers: { cookie: (await app.inject({ method: "POST", url: "/api/auth/login", payload: { username: "admin-b", password: "correct-horse-battery-staple" } })).headers["set-cookie"] as string }, payload: { text: "越权修改" } });
+    expect(readerEdit.statusCode).toBe(403);
+    expect(readerArchive.statusCode).toBe(403);
+    expect(foreignEdit.statusCode).toBe(403);
     const updated = await app.inject({ method: "PATCH", url: `/api/cards/${created.json().card.id}`, headers: { cookie }, payload: { text: "叶子完全变黄了" } });
     expect(updated.statusCode).toBe(200);
     expect(updated.json()).toMatchObject({ card: { text: "叶子完全变黄了" } });
