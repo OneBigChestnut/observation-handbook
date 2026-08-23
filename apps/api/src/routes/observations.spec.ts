@@ -45,6 +45,10 @@ describe("observation api", () => {
     const updated = await app.inject({ method: "PATCH", url: `/api/cards/${created.json().card.id}`, headers: { cookie }, payload: { text: "叶子完全变黄了" } });
     expect(updated.statusCode).toBe(200);
     expect(updated.json()).toMatchObject({ card: { text: "叶子完全变黄了" } });
+    const archived = await app.inject({ method: "DELETE", url: `/api/cards/${created.json().card.id}`, headers: { cookie } });
+    const afterArchive = await app.inject({ method: "GET", url: "/api/children/child-a/cards", headers: { cookie } });
+    expect(archived.statusCode).toBe(204);
+    expect(afterArchive.json()).toEqual({ cards: [] });
     await app.close();
   });
 });

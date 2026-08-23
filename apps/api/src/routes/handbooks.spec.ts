@@ -36,6 +36,9 @@ describe("handbook api", () => {
     expect(detail.json()).toMatchObject({ handbook: { cardIds: ["card-ginkgo-1"] } });
     expect(updated.statusCode).toBe(200);
     expect(updated.json()).toMatchObject({ handbook: { status: "completed", completedAt: "2026-08-22", cardIds: ["card-ginkgo-1", "card-ginkgo-2"] } });
+    const referencedCardDeletion = await app.inject({ method: "DELETE", url: "/api/cards/card-ginkgo-1", headers: { cookie } });
+    expect(referencedCardDeletion.statusCode).toBe(409);
+    expect(referencedCardDeletion.json()).toMatchObject({ code: "CARD_REFERENCED", affectedHandbookIds: [created.json().handbook.id] });
     await app.close();
   });
 });

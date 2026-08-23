@@ -5,7 +5,7 @@ import { assertCardPhotoCount, assertSameChildIds, requireChildAccess, requireFa
 import { getActorFromToken } from "../auth.js";
 import type { ApiConfig } from "../config.js";
 import type { AppDatabase } from "../db/client.js";
-import { auditLogs, cardPhotos, cardTags, children, mediaAssets, observationCards, tags } from "../db/schema.js";
+import { auditLogs, cardPhotos, cardTags, children, handbookCards, mediaAssets, observationCards, tags } from "../db/schema.js";
 
 type ObservationRouteOptions = { database: AppDatabase; config: ApiConfig };
 type CardPayload = { observedAt?: string; text?: string; mediaAssetIds?: unknown; tagNames?: unknown };
@@ -49,7 +49,7 @@ export const registerObservationRoutes: FastifyPluginAsync<ObservationRouteOptio
     const child = await options.database.query.children.findFirst({ where: eq(children.id, request.params.childId) });
     if (!child) return reply.code(404).send({ code: "CHILD_NOT_FOUND" });
     try { requireChildAccess(actor, child); } catch (error) { return reply.code(403).send({ code: error instanceof Error ? error.message : "FAMILY_ACCESS_DENIED" }); }
-    const cards = await options.database.select().from(observationCards).where(eq(observationCards.childId, child.id)).orderBy(desc(observationCards.observedAt));
+    const cards = await options.database.select().from(observationCards).where(and(eq(observationCards.childId, child.id), eq(observationCards.state, "active"))).orderBy(desc(observationCards.observedAt));
     return { cards: await Promise.all(cards.map(card => projectCard(options.database, card))) };
   });
 
@@ -71,7 +71,7 @@ export const registerObservationRoutes: FastifyPluginAsync<ObservationRouteOptio
     const existingTags = await options.database.select().from(tags).where(eq(tags.childId, child.id));
     const byName = new Map(existingTags.map(tag => [tag.name, tag]));
     const newTags = tagNames.filter(name => !byName.has(name)).map(name => ({ id: randomUUID(), childId: child.id, name, color: "olive", createdAt: new Date() }));
-    const card = { id: randomUUID(), childId: child.id, observedAt, text: request.body.text?.trim() ?? "", createdAt: new Date(), updatedAt: new Date() };
+    const card = { id: randomUUID(), childId: child.id, observedAt, text: request.body.text?.trim() ?? "", state: "active" as const, createdAt: new Date(), updatedAt: new Date() };
     const tagRecords = [...existingTags.filter(tag => tagNames.includes(tag.name)), ...newTags];
     options.database.transaction(transaction => {
       if (newTags.length) transaction.insert(tags).values(newTags).run();
@@ -98,6 +98,21 @@ export const registerObservationRoutes: FastifyPluginAsync<ObservationRouteOptio
       transaction.insert(auditLogs).values({ id: randomUUID(), actorId: actor.accountId, familyId: child.familyId, action: "card.updated", targetType: "observation_card", targetId: card.id, metadata: JSON.stringify({ observedAt: next.observedAt }), createdAt: next.updatedAt }).run();
     });
     return { card: await projectCard(options.database, next) };
+  });
+
+  app.delete<{ Params: { cardId: string } }>("/api/cards/:cardId", async (request, reply) => {
+    const actor = await getActor(options, request.cookies[options.config.sessionCookie.name]);
+    if (!actor) return reply.code(401).send({ code: "AUTH_REQUIRED" });
+    const card = await options.database.query.observationCards.findFirst({ where: eq(observationCards.id, request.params.cardId) });
+    if (!card) return reply.code(404).send({ code: "CARD_NOT_FOUND" });
+    const child = await options.database.query.children.findFirst({ where: eq(children.id, card.childId) });
+    if (!child) return reply.code(404).send({ code: "CHILD_NOT_FOUND" });
+    try { requireFamilyAdmin(actor, child.familyId); } catch (error) { return reply.code(403).send({ code: error instanceof Error ? error.message : "FAMILY_ADMIN_REQUIRED" }); }
+    const references = await options.database.select({ handbookId: handbookCards.handbookId }).from(handbookCards).where(eq(handbookCards.cardId, card.id));
+    if (references.length) return reply.code(409).send({ code: "CARD_REFERENCED", affectedHandbookIds: references.map(item => item.handbookId) });
+    const now = new Date();
+    options.database.transaction(transaction => { transaction.update(observationCards).set({ state: "archived", updatedAt: now }).where(eq(observationCards.id, card.id)).run(); transaction.insert(auditLogs).values({ id: randomUUID(), actorId: actor.accountId, familyId: child.familyId, action: "card.archived", targetType: "observation_card", targetId: card.id, metadata: "{}", createdAt: now }).run(); });
+    return reply.code(204).send();
   });
 };
 

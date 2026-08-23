@@ -51,6 +51,7 @@ export const observationCards = sqliteTable("observation_cards", {
   childId: text("child_id").notNull().references(() => children.id, { onDelete: "cascade" }),
   observedAt: text("observed_at").notNull(),
   text: text("text").notNull(),
+  state: text("state", { enum: ["active", "archived"] }).notNull().default("active"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 }, table => [index("observation_cards_child_observed_index").on(table.childId, table.observedAt)]);
