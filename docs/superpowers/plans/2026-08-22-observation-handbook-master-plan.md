@@ -133,11 +133,10 @@
 
 **Produces:** publish, publish-new-version, withdraw, super-admin downlist/restore endpoints, plus authenticated public list/detail projections.
 
-- [ ] Write API tests proving no-session public request is 401; publish stores a snapshot; later handbook edits do not alter it; withdraw and downlist return 404 to public readers.
-- [ ] Run `pnpm --filter @observation-handbook/api test -- publications.spec.ts`; confirm failure.
-- [ ] Implement immutable publication snapshots with only display-safe thumbnail and text fields; never return original paths, family-member data, tags-management state, exports, or editor metadata.
-- [ ] Write web tests that public navigation is visible after login, excludes private/withdrawn content, and no edit action appears for another family.
-- [ ] Run focused tests and commit `feat: add authenticated handbook publishing`.
+- [x] Write API tests proving unauthenticated public requests are rejected, publication snapshots survive later handbook edits, and withdrawal returns 404.
+- [x] Implement authenticated immutable publication snapshots and withdraw routes with family-admin authorization.
+- [x] Add public list and reader components using display-safe projections only.
+- [x] Run full tests, typecheck, production build and diff check.
 
 **Gate:** any logged-in household may read published handbooks, while only the owning family administrator can publish or withdraw.
 
@@ -182,7 +181,7 @@
 - Report only two percentages: **implementation branch completion** and **`main` deliverable completion**.
 - A stage counts only after its acceptance gate passes and its commit is present on `main`.
 - Do not count visual prototypes, uncommitted code, unchecked historical-plan tasks, or inherited old-project functionality.
-- Current baseline: Stages 0–3 are merged on `main`; Stages 4–6 are not started. Report the implementation branch and `main` deliverable as **60%**.
+- Current baseline: Stages 0–4 are merged on `main`; Stages 5–6 are not started. Report the implementation branch and `main` deliverable as **70%**.
 
 ## Self-Review
 

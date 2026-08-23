@@ -10,6 +10,7 @@ import { registerObservationRoutes } from "./routes/observations.js";
 import { registerHandbookRoutes } from "./routes/handbooks.js";
 import { registerTemplateRoutes } from "./routes/templates.js";
 import { registerExportRoutes } from "./routes/exports.js";
+import { registerPublicationRoutes } from "./routes/publications.js";
 
 export async function buildApp(database: AppDatabase, config: ApiConfig) {
   const app = Fastify();
@@ -22,5 +23,6 @@ export async function buildApp(database: AppDatabase, config: ApiConfig) {
   await app.register(registerHandbookRoutes, { database, config });
   await app.register(registerTemplateRoutes, { database, config });
   await app.register(registerExportRoutes, { database, config });
+  await app.register(registerPublicationRoutes, { database, config });
   return app;
 }
