@@ -1,0 +1,28 @@
+{
+  "name": "@observation-handbook/api",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "test": "vitest run --config vitest.config.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "seed": "tsx src/seed-runner.ts"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.2",
+    "@fastify/multipart": "^10.1.1",
+    "@observation-handbook/domain": "workspace:*",
+    "better-sqlite3": "^12.4.1",
+    "drizzle-orm": "^0.44.7",
+    "fastify": "^5.12.1",
+    "sharp": "^0.35.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "drizzle-kit": "^0.31.7",
+    "tsx": "^4.23.12"
+  }
+}

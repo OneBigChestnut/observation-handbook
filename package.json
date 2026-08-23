@@ -4,7 +4,10 @@
   "packageManager": "pnpm@10.12.4",
   "scripts": {
     "dev": "pnpm --filter @observation-handbook/web dev",
+    "dev:api": "pnpm --filter @observation-handbook/api dev",
     "build": "pnpm --filter @observation-handbook/web build",
+    "db:generate": "pnpm --filter @observation-handbook/api db:generate",
+    "db:migrate": "pnpm --filter @observation-handbook/api db:migrate",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"

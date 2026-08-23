@@ -1,4 +1,17 @@
 export const CARD_PHOTO_LIMIT = 4;
+export * from "./access.js";
+
+export function assertCardPhotoCount(photoCount: number): void {
+  if (!Number.isInteger(photoCount) || photoCount < 1 || photoCount > CARD_PHOTO_LIMIT) {
+    throw new Error("a card requires 1 to 4 photos");
+  }
+}
+
+export function assertSameChildIds(childId: string, relatedChildIds: string[]): void {
+  if (relatedChildIds.some(relatedChildId => relatedChildId !== childId)) {
+    throw new Error("child scope violation");
+  }
+}
 export const PAPER_SIZE = "A5" as const;
 export type PaperSize = typeof PAPER_SIZE;
 
