@@ -11,6 +11,7 @@ import { registerHandbookRoutes } from "./routes/handbooks.js";
 import { registerTemplateRoutes } from "./routes/templates.js";
 import { registerExportRoutes } from "./routes/exports.js";
 import { registerPublicationRoutes } from "./routes/publications.js";
+import { registerAdminRoutes } from "./routes/admin.js";
 
 export async function buildApp(database: AppDatabase, config: ApiConfig) {
   const app = Fastify();
@@ -24,5 +25,6 @@ export async function buildApp(database: AppDatabase, config: ApiConfig) {
   await app.register(registerTemplateRoutes, { database, config });
   await app.register(registerExportRoutes, { database, config });
   await app.register(registerPublicationRoutes, { database, config });
+  await app.register(registerAdminRoutes, { database, config });
   return app;
 }

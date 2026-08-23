@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { requireChildAccess, requireFamilyAdmin, requireFamilyRead } from "@observation-handbook/domain";
 import { getActorFromToken } from "../auth.js";
 import type { ApiConfig } from "../config.js";
@@ -73,6 +73,13 @@ export const registerFamilyRoutes: FastifyPluginAsync<FamilyRouteOptions> = asyn
     await options.database.insert(familyMemberships).values({ accountId, familyId: request.params.familyId, role: "reader" }).onConflictDoNothing();
     await options.database.insert(auditLogs).values({ id: randomUUID(), actorId: actor.accountId, familyId: request.params.familyId, action: "family_member.added", targetType: "family_membership", targetId: accountId, metadata: JSON.stringify({ role: "reader" }), createdAt: new Date() });
     return reply.code(201).send({ member: { accountId, role: "reader" } });
+  });
+  app.delete<{ Params: { familyId: string; accountId: string } }>("/api/families/:familyId/members/:accountId", async (request, reply) => {
+    const actor = await getActor(options, request.cookies[options.config.sessionCookie.name]); if (!actor) return reply.code(401).send({ code: "AUTH_REQUIRED" });
+    try { requireFamilyAdmin(actor, request.params.familyId); } catch { return reply.code(403).send({ code: "FAMILY_ADMIN_REQUIRED" }); }
+    const member = await options.database.query.familyMemberships.findFirst({ where: and(eq(familyMemberships.familyId, request.params.familyId), eq(familyMemberships.accountId, request.params.accountId)) });
+    if (!member) return reply.code(404).send({ code: "MEMBER_NOT_FOUND" }); if (member.role === "admin") return reply.code(409).send({ code: "SOLE_ADMIN_CANNOT_REMOVE" });
+    await options.database.delete(familyMemberships).where(and(eq(familyMemberships.familyId, request.params.familyId), eq(familyMemberships.accountId, request.params.accountId))); return reply.code(204).send();
   });
 };
 
