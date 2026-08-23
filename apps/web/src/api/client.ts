@@ -30,6 +30,7 @@ export type ObservationCardSummary = {
 };
 
 export type TagSummary = { id: string; name: string; color: string; cardCount: number };
+export type TemplateSummary = { id: string; name: string; kind: "cover" | "back" | "card_1" | "card_2" | "card_3" | "card_4"; state: "draft" | "published" | "retired"; paperSize: "A5"; orientation: "portrait" };
 export type HandbookSummary = { id: string; title: string; introduction: string; startedAt: string; completedAt: string | null; status: "ongoing" | "completed"; cardCount: number; tagCount: number; cardIds: string[]; tagIds: string[] };
 export type CreateHandbookPayload = {
   title: string;
@@ -69,6 +70,11 @@ export const apiClient = {
   createTag: (childId: string, payload: { name: string; color: string }) => request<{ tag: { id: string } }>(`/api/children/${childId}/tags`, { method: "POST", body: JSON.stringify(payload) }).then(response => response.tag),
   createHandbook: (childId: string, payload: CreateHandbookPayload) => request<{ handbook: { id: string } }>(`/api/children/${childId}/handbooks`, { method: "POST", body: JSON.stringify(payload) }).then(response => response.handbook),
   updateHandbook: (handbookId: string, payload: Partial<CreateHandbookPayload>) => request<{ handbook: HandbookSummary }>(`/api/handbooks/${handbookId}`, { method: "PATCH", body: JSON.stringify(payload) }).then(response => response.handbook),
+  templates: (kind: TemplateSummary["kind"]) => request<{ templates: TemplateSummary[] }>(`/api/templates?kind=${kind}`).then(response => response.templates),
+  adminTemplates: () => request<{ templates: TemplateSummary[] }>("/api/admin/templates").then(response => response.templates),
+  createTemplate: (payload: Pick<TemplateSummary, "name" | "kind" | "state">) => request<{ template: TemplateSummary }>("/api/admin/templates", { method: "POST", body: JSON.stringify(payload) }).then(response => response.template),
+  updateTemplate: (id: string, payload: Partial<Pick<TemplateSummary, "name" | "state">>) => request<{ template: TemplateSummary }>(`/api/admin/templates/${id}`, { method: "PATCH", body: JSON.stringify(payload) }).then(response => response.template),
+  removeTemplate: (id: string) => request<void>(`/api/admin/templates/${id}`, { method: "DELETE" }),
   workspace: async (): Promise<Workspace> => {
     const [session, familyResponse] = await Promise.all([apiClient.me(), apiClient.currentFamilies()]);
     return { account: { id: session.accountId, username: session.username, platformRole: session.platformRole }, families: familyResponse.families };

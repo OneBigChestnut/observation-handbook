@@ -108,3 +108,22 @@ export const auditLogs = sqliteTable("audit_logs", {
   metadata: text("metadata").notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 }, table => [index("audit_logs_family_created_index").on(table.familyId, table.createdAt), index("audit_logs_actor_created_index").on(table.actorId, table.createdAt)]);
+
+export const templateVersions = sqliteTable("template_versions", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  kind: text("kind", { enum: ["cover", "back", "card_1", "card_2", "card_3", "card_4"] }).notNull(),
+  state: text("state", { enum: ["draft", "published", "retired"] }).notNull().default("draft"),
+  paperSize: text("paper_size", { enum: ["A5"] }).notNull().default("A5"),
+  orientation: text("orientation", { enum: ["portrait"] }).notNull().default("portrait"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+}, table => [index("template_versions_kind_state_index").on(table.kind, table.state)]);
+
+export const templateUsages = sqliteTable("template_usages", {
+  id: text("id").primaryKey(),
+  templateVersionId: text("template_version_id").notNull().references(() => templateVersions.id, { onDelete: "restrict" }),
+  referenceType: text("reference_type").notNull(),
+  referenceId: text("reference_id").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+}, table => [index("template_usages_template_index").on(table.templateVersionId)]);

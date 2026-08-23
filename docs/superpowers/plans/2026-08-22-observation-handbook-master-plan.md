@@ -96,11 +96,10 @@
 
 **Produces:** `TemplateVersion` records with `kind: cover | back | card_1 | card_2 | card_3 | card_4`, `state: draft | published | retired`, and admin-only CRUD/version actions.
 
-- [ ] Write API tests: non-super-admin receives 403; all created layouts have `paperSize: "A5"` and `orientation: "portrait"`; a referenced version cannot be edited or deleted and becomes `retired` instead.
-- [ ] Run `pnpm --filter @observation-handbook/api test -- templates.spec.ts`; confirm failure.
-- [ ] Implement template versions, immutable usage counter/snapshot reference, and published-selector queries by `kind`; reject any paper size other than A5.
-- [ ] Write web tests that a card with three photos only lists `card_3` templates and a handbook lists only published cover/back templates.
-- [ ] Run focused tests, `pnpm typecheck`, and commit `feat: add immutable A5 template management`.
+- [x] Write API tests: non-super-admin receives 403; all created layouts have `paperSize: "A5"` and `orientation: "portrait"`; a referenced version cannot be edited or deleted and becomes `retired` instead.
+- [x] Implement template versions, immutable usage references, and published-selector queries by `kind`; A5 portrait values are server-owned and fixed.
+- [x] Write web tests that a three-photo card requests only `card_3` templates, and expose the super-admin template management page.
+- [x] Run full tests, `pnpm typecheck`, production build, and diff check.
 
 **Gate:** only a super administrator can manage templates; family administrators can choose but never edit published templates.
 
@@ -184,7 +183,7 @@
 - Report only two percentages: **implementation branch completion** and **`main` deliverable completion**.
 - A stage counts only after its acceptance gate passes and its commit is present on `main`.
 - Do not count visual prototypes, uncommitted code, unchecked historical-plan tasks, or inherited old-project functionality.
-- Current baseline: Stages 0–1 are merged on `main`; Stages 2–6 are not started. Report the implementation branch and `main` deliverable as **40%**.
+- Current baseline: Stages 0–2 are merged on `main`; Stages 3–6 are not started. Report the implementation branch and `main` deliverable as **50%**.
 
 ## Self-Review
 
