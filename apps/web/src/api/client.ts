@@ -31,6 +31,7 @@ export type ObservationCardSummary = {
 
 export type TagSummary = { id: string; name: string; color: string; cardCount: number };
 export type TemplateSummary = { id: string; name: string; kind: "cover" | "back" | "card_1" | "card_2" | "card_3" | "card_4"; state: "draft" | "published" | "retired"; paperSize: "A5"; orientation: "portrait" };
+export type ExportSummary = { id: string; childId: string; handbookId: string; kind: "screen" | "print"; snapshot: string; createdAt: string };
 export type HandbookSummary = { id: string; title: string; introduction: string; startedAt: string; completedAt: string | null; status: "ongoing" | "completed"; cardCount: number; tagCount: number; cardIds: string[]; tagIds: string[] };
 export type CreateHandbookPayload = {
   title: string;
@@ -75,6 +76,9 @@ export const apiClient = {
   createTemplate: (payload: Pick<TemplateSummary, "name" | "kind" | "state">) => request<{ template: TemplateSummary }>("/api/admin/templates", { method: "POST", body: JSON.stringify(payload) }).then(response => response.template),
   updateTemplate: (id: string, payload: Partial<Pick<TemplateSummary, "name" | "state">>) => request<{ template: TemplateSummary }>(`/api/admin/templates/${id}`, { method: "PATCH", body: JSON.stringify(payload) }).then(response => response.template),
   removeTemplate: (id: string) => request<void>(`/api/admin/templates/${id}`, { method: "DELETE" }),
+  exports: (childId: string) => request<{ exports: ExportSummary[] }>(`/api/children/${childId}/exports`).then(response => response.exports),
+  createExport: (childId: string, payload: { handbookId: string; kind: "screen" | "print" }) => request<{ export: ExportSummary }>(`/api/children/${childId}/exports`, { method: "POST", body: JSON.stringify(payload) }).then(response => response.export),
+  removeExport: (id: string) => request<void>(`/api/exports/${id}`, { method: "DELETE" }),
   workspace: async (): Promise<Workspace> => {
     const [session, familyResponse] = await Promise.all([apiClient.me(), apiClient.currentFamilies()]);
     return { account: { id: session.accountId, username: session.username, platformRole: session.platformRole }, families: familyResponse.families };

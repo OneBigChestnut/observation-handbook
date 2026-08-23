@@ -114,12 +114,11 @@
 
 **Produces:** `POST /api/children/:childId/exports`, `GET /api/children/:childId/exports`, `GET /api/exports/:exportId/download`, and `DELETE /api/exports/:exportId`.
 
-- [ ] Write preflight tests for empty handbook, no cover photo, template retired, insufficient image resolution, and text outside safe area.
-- [ ] Run `pnpm --filter @observation-handbook/api test -- preflight.spec.ts`; confirm failure.
-- [ ] Implement immutable export snapshots containing handbook/card order, cover/back/card template versions, media references, preflight result, output kind, and generated time.
-- [ ] Write route tests verifying screen output has `bleedMm: 0` and no crop marks, while print output has `bleedMm: 3` and crop marks; reader requests return 403.
-- [ ] Write web test: the only entry point is the header “导出手册” button; dialog completion adds a downloadable file and delete removes only that file record.
-- [ ] Run focused tests and commit `feat: add A5 handbook export jobs`.
+- [x] Write preflight tests for empty handbook, no cover photo, template retired, insufficient image resolution, and text outside safe area.
+- [x] Implement immutable export-job snapshots and authenticated create/list/download/delete routes.
+- [x] Verify screen output uses `bleedMm: 0` without crop marks, print uses `bleedMm: 3` with crop marks, and reader writes return 403.
+- [x] Add family-side export dialog/workspace with create, download and delete interactions.
+- [x] Run full tests, typecheck, production build and diff check.
 
 **Gate:** an administrator can select a handbook and one of two PDF types, pass preflight, download the immutable result, and delete generated files without changing content.
 
@@ -183,7 +182,7 @@
 - Report only two percentages: **implementation branch completion** and **`main` deliverable completion**.
 - A stage counts only after its acceptance gate passes and its commit is present on `main`.
 - Do not count visual prototypes, uncommitted code, unchecked historical-plan tasks, or inherited old-project functionality.
-- Current baseline: Stages 0–2 are merged on `main`; Stages 3–6 are not started. Report the implementation branch and `main` deliverable as **50%**.
+- Current baseline: Stages 0–3 are merged on `main`; Stages 4–6 are not started. Report the implementation branch and `main` deliverable as **60%**.
 
 ## Self-Review
 

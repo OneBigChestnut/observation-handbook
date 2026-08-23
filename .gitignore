@@ -9,3 +9,4 @@ apps/api/data/*.db
 apps/api/data/*.db-journal
 
 .worktrees/
+.pnpm-store/

@@ -127,3 +127,7 @@ export const templateUsages = sqliteTable("template_usages", {
   referenceId: text("reference_id").notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 }, table => [index("template_usages_template_index").on(table.templateVersionId)]);
+
+export const exportJobs = sqliteTable("export_jobs", {
+  id: text("id").primaryKey(), childId: text("child_id").notNull().references(() => children.id, { onDelete: "cascade" }), handbookId: text("handbook_id").notNull().references(() => handbooks.id, { onDelete: "restrict" }), kind: text("kind", { enum: ["screen", "print"] }).notNull(), snapshot: text("snapshot").notNull(), createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+}, table => [index("export_jobs_child_created_index").on(table.childId, table.createdAt)]);
