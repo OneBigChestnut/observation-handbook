@@ -42,6 +42,9 @@ describe("observation api", () => {
     expect(listedTags.json().tags).toEqual(expect.arrayContaining([expect.objectContaining({ name: "银杏", cardCount: 1 }), expect.objectContaining({ name: "自然", cardCount: 0 })]));
     expect(readerWrite.statusCode).toBe(403);
     expect(foreignMedia.statusCode).toBe(403);
+    const updated = await app.inject({ method: "PATCH", url: `/api/cards/${created.json().card.id}`, headers: { cookie }, payload: { text: "叶子完全变黄了" } });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json()).toMatchObject({ card: { text: "叶子完全变黄了" } });
     await app.close();
   });
 });

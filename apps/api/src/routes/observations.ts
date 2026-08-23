@@ -82,6 +82,23 @@ export const registerObservationRoutes: FastifyPluginAsync<ObservationRouteOptio
     });
     return reply.code(201).send({ card: await projectCard(options.database, card) });
   });
+
+  app.patch<{ Params: { cardId: string }; Body: CardPayload }>("/api/cards/:cardId", async (request, reply) => {
+    const actor = await getActor(options, request.cookies[options.config.sessionCookie.name]);
+    if (!actor) return reply.code(401).send({ code: "AUTH_REQUIRED" });
+    const card = await options.database.query.observationCards.findFirst({ where: eq(observationCards.id, request.params.cardId) });
+    if (!card) return reply.code(404).send({ code: "CARD_NOT_FOUND" });
+    const child = await options.database.query.children.findFirst({ where: eq(children.id, card.childId) });
+    if (!child) return reply.code(404).send({ code: "CHILD_NOT_FOUND" });
+    try { requireFamilyAdmin(actor, child.familyId); } catch (error) { return reply.code(403).send({ code: error instanceof Error ? error.message : "FAMILY_ADMIN_REQUIRED" }); }
+    const next = { ...card, text: request.body.text === undefined ? card.text : request.body.text.trim(), observedAt: request.body.observedAt ?? card.observedAt, updatedAt: new Date() };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(next.observedAt)) return reply.code(400).send({ code: "CARD_DATE_INVALID" });
+    options.database.transaction(transaction => {
+      transaction.update(observationCards).set({ text: next.text, observedAt: next.observedAt, updatedAt: next.updatedAt }).where(eq(observationCards.id, card.id)).run();
+      transaction.insert(auditLogs).values({ id: randomUUID(), actorId: actor.accountId, familyId: child.familyId, action: "card.updated", targetType: "observation_card", targetId: card.id, metadata: JSON.stringify({ observedAt: next.observedAt }), createdAt: next.updatedAt }).run();
+    });
+    return { card: await projectCard(options.database, next) };
+  });
 };
 
 async function getActor(options: ObservationRouteOptions, token: string | undefined) {
