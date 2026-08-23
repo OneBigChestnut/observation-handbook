@@ -31,6 +31,14 @@ export type ObservationCardSummary = {
 
 export type TagSummary = { id: string; name: string; color: string; cardCount: number };
 export type HandbookSummary = { id: string; title: string; introduction: string; startedAt: string; completedAt: string | null; status: "ongoing" | "completed"; cardCount: number; tagCount: number };
+export type CreateHandbookPayload = {
+  title: string;
+  introduction: string;
+  startedAt: string;
+  completedAt?: string;
+  tagIds: string[];
+  cardIds: string[];
+};
 
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const isFormData = init?.body instanceof FormData;
@@ -56,6 +64,7 @@ export const apiClient = {
   uploadMedia: (childId: string, file: File) => { const form = new FormData(); form.append("file", file); return request<{ media: { id: string } }>(`/api/children/${childId}/media`, { method: "POST", body: form }).then(response => response.media); },
   createCard: (childId: string, payload: { observedAt: string; text: string; mediaAssetIds: string[]; tagNames: string[] }) => request<{ card: { id: string } }>(`/api/children/${childId}/cards`, { method: "POST", body: JSON.stringify(payload) }).then(response => response.card),
   createTag: (childId: string, payload: { name: string; color: string }) => request<{ tag: { id: string } }>(`/api/children/${childId}/tags`, { method: "POST", body: JSON.stringify(payload) }).then(response => response.tag),
+  createHandbook: (childId: string, payload: CreateHandbookPayload) => request<{ handbook: { id: string } }>(`/api/children/${childId}/handbooks`, { method: "POST", body: JSON.stringify(payload) }).then(response => response.handbook),
   workspace: async (): Promise<Workspace> => {
     const [session, familyResponse] = await Promise.all([apiClient.me(), apiClient.currentFamilies()]);
     return { account: { id: session.accountId, username: session.username, platformRole: session.platformRole }, families: familyResponse.families };
