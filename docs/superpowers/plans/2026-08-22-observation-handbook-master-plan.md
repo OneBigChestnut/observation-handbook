@@ -8,12 +8,13 @@
 
 **Tech Stack:** React 19、Vite 6、Fastify 5、TypeScript、Drizzle ORM、better-sqlite3、Sharp、Vitest。
 
-**Spec:** `docs/superpowers/specs/2026-08-22-authenticated-observation-platform-design.md`
+**Spec:** `docs/superpowers/specs/2026-08-23-delivery-convergence-design.md`
 
 ## This Is the Authoritative Plan
 
 - 本文件取代此前按“基础认证”“持久化内容”“标签驱动手册”拆开的执行顺序；旧计划保留为历史记录，不再作为任务来源。
-- `main` 是唯一可交付分支；`codex/authenticated-platform-foundation` 只用于完成当前未提交的手册创建红测和接受合并前验证。
+- `main` 是唯一可交付分支；浏览器内存原型只保留为视觉参考，不得成为新功能的业务状态来源。
+- `codex/authenticated-platform-foundation` 是当前阶段 0 的唯一实现分支；先修复、验证并合并它，再开始阶段 1–6。
 - 所有新功能在合并到 `main` 后继续开发；不再创建第二套 schema、第二个 API 或第二个页面壳层。
 - 已删除的“儿童自然观察作品集”不被导入、复制、引用或迁移；空 SQLite 数据库必须可独立启动。
 
@@ -47,22 +48,25 @@
 
 ### Stage 0 — Consolidate the Existing Authenticated Foundation
 
-**Current state:** in progress. Authentication, child-scoped media/cards/tags/handbooks, and most real-data readers exist on `codex/authenticated-platform-foundation`; the branch has one uncommitted red test for handbook creation.
+**Current state:** in progress. Authentication、Drizzle/SQLite、家庭和儿童范围校验、受控媒体缩略图、卡片/标签/手册 API 与部分 Web 读取器已在 `codex/authenticated-platform-foundation` 实现。该分支有未提交的 `CreateHandbookForm` 和测试；表单引用的 `apiClient.createHandbook` 缺失，完整类型检查尚未通过。
 
 **Files:**
-- Modify: `apps/web/src/api/client.ts`, `apps/web/src/main.tsx`
+- Modify: `apps/web/src/api/client.ts`, `apps/web/src/main.tsx`, `apps/web/src/content/ChildContentLoader.tsx`
 - Create: `apps/web/src/content/CreateHandbookForm.tsx`
 - Test: `apps/web/src/content/CreateHandbookForm.spec.tsx`
 
-**Produces:** `apiClient.createHandbook(childId, payload)` and an administrator-only form that selects existing child tags and cards, then reloads the handbook list.
+**Produces:** `apiClient.createHandbook(childId, payload)`、管理员专属的手册创建表单，以及在 API 成功后重新加载当前儿童手册列表的受控内容壳层。
 
-- [ ] Write/retain the focused failing test for title, introduction, selected tags, selected cards, and `onCreated`.
-- [ ] Run `pnpm --filter @observation-handbook/web test -- CreateHandbookForm.spec.tsx`; confirm it fails before the component exists.
-- [ ] Implement the form against `POST /api/children/:childId/handbooks`; use only existing child IDs and call `onCreated` after a 201 response.
-- [ ] Run `pnpm --filter @observation-handbook/web test -- CreateHandbookForm.spec.tsx && pnpm typecheck`.
-- [ ] Run `pnpm test && pnpm typecheck && pnpm --filter @observation-handbook/web build && git diff --check`; merge the verified branch into `main` with commit message `feat: consolidate authenticated observation foundation`.
+- [ ] **Step 1: 补齐客户端写入契约。** 在 `api/client.ts` 定义 `CreateHandbookPayload = { title: string; introduction: string; startedAt: string; completedAt?: string; tagIds: string[]; cardIds: string[] }`，并实现 `createHandbook(childId, payload)`，以 `POST /api/children/:childId/handbooks` 发送 JSON，返回 `{ id: string }`。
+- [ ] **Step 2: 先运行类型检查，确认当前失败。** Run: `pnpm typecheck`。Expected: FAIL，提示 `apiClient.createHandbook` 不存在。
+- [ ] **Step 3: 验证客户端和表单。** Run: `pnpm --filter @observation-handbook/web test -- CreateHandbookForm.spec.tsx`。Expected: PASS，覆盖标题、介绍、标签、卡片、提交 payload 和 `onCreated`。
+- [ ] **Step 4: 接入真实壳层。** 在 `ChildContentLoader` 和 `main.tsx` 中仅对当前 API 返回的儿童、卡片、标签和手册渲染；管理员显示创建卡片、标签、手册入口，reader 不显示任何写入入口。
+- [ ] **Step 5: 验证角色和范围。** 保留并运行 API 测试，证明无会话为 401、reader 写入为 403、跨家庭和跨儿童为 403；新增 Web 测试，证明手册创建成功后重新读取当前儿童列表。
+- [ ] **Step 6: 运行阶段验收。** Run: `pnpm test && pnpm typecheck && pnpm --filter @observation-handbook/web build && git diff --check`。Expected: PASS。
+- [ ] **Step 7: 进行可复现的启动验收。** 从空 SQLite 数据库执行迁移和开发种子，启动 API 与 Web；以管理员创建卡片、标签、手册后刷新页面确认数据保留；以 reader 登录确认只能读取。记录实际命令并更新 README。
+- [ ] **Step 8: 提交并合并。** 在实现分支提交 `feat: consolidate authenticated observation foundation`；在 `main` 合并该提交并再次运行完整阶段验收。
 
-**Gate:** a fresh clone can run API and web, sign in with the development seed, create a card/tag/handbook for one child, and a reader can only read it.
+**Gate:** 新克隆可从空 SQLite 数据库迁移和启动 API/Web；管理员可以登录并为一个儿童创建卡片、标签和手册，刷新后数据保留；reader 只能读取；无会话、跨家庭和跨儿童请求均被 API 拒绝；所有测试、类型检查、Web 构建和 diff 检查通过。
 
 ### Stage 1 — Complete Family Content Lifecycle
 
