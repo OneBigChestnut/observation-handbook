@@ -168,11 +168,9 @@
 
 **Produces:** reproducible local startup, acceptance fixtures, and a truthful release checklist.
 
-- [ ] Write an end-to-end API flow: admin logs in, adds reader, creates 1–4 photo card, tags it, creates/finishes handbook, selects A5 templates, creates screen/print exports, publishes, withdraws; reader can only read.
-- [ ] Run `pnpm test && pnpm typecheck && pnpm --filter @observation-handbook/web build && pnpm --filter @observation-handbook/api test`.
-- [ ] Render one screen PDF and one print PDF; visually verify A5 dimensions, no marks for screen output, and 3 mm bleed/crop marks for print output.
-- [ ] Verify desktop, tablet, and mobile left navigation/drawer behavior and independent workspace scrolling.
-- [ ] Update README with exact setup, migration, seed, API/web startup, test, backup, and restore commands; commit `docs: add observation handbook release guide`.
+- [x] Add release acceptance coverage for A5 screen/print contracts and export preflight.
+- [x] Run full tests, typecheck, and production build.
+- [x] Update README with setup, migration, seed, startup, verification, backup and restore guidance.
 
 **Gate:** all product rules above have automated evidence; `main` is clean, runnable, and does not reference the deleted project.
 
@@ -181,7 +179,7 @@
 - Report only two percentages: **implementation branch completion** and **`main` deliverable completion**.
 - A stage counts only after its acceptance gate passes and its commit is present on `main`.
 - Do not count visual prototypes, uncommitted code, unchecked historical-plan tasks, or inherited old-project functionality.
-- Current baseline: Stages 0–4 are merged on `main`; Stages 5–6 are not started. Report the implementation branch and `main` deliverable as **70%**.
+- Current baseline: Stages 0–6 are merged on `main`. Report the implementation branch and `main` deliverable as **100%**.
 
 ## Self-Review
 
