@@ -12,13 +12,16 @@ import { registerTemplateRoutes } from "./routes/templates.js";
 import { registerExportRoutes } from "./routes/exports.js";
 import { registerPublicationRoutes } from "./routes/publications.js";
 import { registerAdminRoutes } from "./routes/admin.js";
+import { registerProjectRoutes } from "./routes/projects.js";
 
 export async function buildApp(database: AppDatabase, config: ApiConfig) {
   const app = Fastify();
+  app.get("/api/health", async () => ({ status: "ok" }));
   await app.register(cookie);
   await app.register(multipart, { limits: { files: 1, fileSize: 12 * 1024 * 1024 } });
   await app.register(registerAuthRoutes, { database, config });
   await app.register(registerFamilyRoutes, { database, config });
+  await app.register(registerProjectRoutes, { database, config });
   await app.register(registerMediaRoutes, { database, config });
   await app.register(registerObservationRoutes, { database, config });
   await app.register(registerHandbookRoutes, { database, config });

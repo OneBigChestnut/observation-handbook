@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { assertCardTemplateMatchesHandbook, assignPlatformRole, createGeneratedExport, createObservationCard, createObservationTag, DEFAULT_CARD_VIEW, filterObservationCardsByHandbook, getCardTemplateCategory, getFamilyAccountPopulation, getPdfExportSpec, getTemplateRemovalAction, groupTagsByChild, publishObservationHandbook, removeFamilyMember, removeGeneratedExport, removePlatformMember, unpublishObservationHandbook, type CardView, type PdfExportKind } from "@observation-handbook/domain";
+import { assertCardTemplateMatchesHandbook, assignPlatformRole, createGeneratedExport, createObservationCard, createObservationTag, DEFAULT_CARD_VIEW, filterObservationCardsByHandbook, getCardTemplateCategory, getFamilyAccountPopulation, getPdfExportSpec, getTemplateRemovalAction, groupTagsByChild, publishObservationHandbook, removeGeneratedExport, removePlatformMember, unpublishObservationHandbook, type CardView, type PdfExportKind } from "@observation-handbook/domain";
 import { AuthGate } from "./auth/AuthGate.js";
 import { apiClient, type Workspace } from "./api/client.js";
 import { TemplateManagementPage } from "./admin/TemplateManagementPage.js";
@@ -10,6 +10,9 @@ import { CreateObservationCardForm } from "./content/CreateObservationCardForm.j
 import { CreateTagForm } from "./content/CreateTagForm.js";
 import { CreateHandbookForm } from "./content/CreateHandbookForm.js";
 import { ExportWorkspace } from "./content/ExportWorkspace.js";
+import { PublicHandbookList } from "./content/PublicHandbookList.js";
+import { PublicHandbookReader } from "./content/PublicHandbookReader.js";
+import { demoLoadCards, demoLoadExports, demoLoadHandbooks, demoLoadTags } from "./demo/demoData.js";
 import "./styles.css";
 
 type Card = {
@@ -173,8 +176,8 @@ function PublicHandbookTile({ handbook, onOpen }: { handbook: PublicHandbook; on
   return <article className="public-handbook-tile" onClick={() => onOpen(handbook)}><img src={imageUrl(handbook.cover, 720)} alt="" /><div className="public-handbook-copy"><div><span>#{handbook.tag}</span><time>发布于 {handbook.publishedAt}</time></div><h2>{handbook.title}</h2><p>{handbook.introduction}</p><footer><b>{handbook.family}</b><span>{handbook.child} · {handbook.cardCount} 张卡片</span><i>阅读 →</i></footer></div></article>;
 }
 
-function FamilyMemberRow({ member, onManage }: { member: FamilyMemberSummary; onManage: (member: FamilyMemberSummary) => void }) {
-  return <article className="member-row"><span className={`member-avatar ${member.color}`}>{member.initial}</span><div><h2>{member.name}</h2><p>{member.joinedAt}</p></div><span className={member.role === "家庭管理员" ? "member-admin" : "member-reader"}>{member.role}</span><button onClick={() => onManage(member)}>管理 →</button></article>;
+function FamilyMemberRow({ member, onManage }: { member: FamilyMemberSummary; onManage?: (member: FamilyMemberSummary) => void }) {
+  return <article className="member-row"><span className={`member-avatar ${member.color}`}>{member.initial}</span><div><h2>{member.name}</h2><p>{member.joinedAt}</p></div><span className={member.role === "家庭管理员" ? "member-admin" : "member-reader"}>{member.role}</span>{onManage && <button onClick={() => onManage(member)}>管理 →</button>}</article>;
 }
 
 function AdminTemplateRow({ template }: { template: AdminTemplate }) {
@@ -191,17 +194,25 @@ function FamilyAccountRow({ account, onManage }: { account: FamilyAccount; onMan
 
 function App({ workspace }: { workspace: Workspace }) {
   const [activeNav, setActiveNav] = useState("今日记录");
+  const isSuperAdmin = workspace.account.platformRole === "super_admin";
+  const isDemo = workspace.account.demo === true;
   const [view, setView] = useState<CardView>(DEFAULT_CARD_VIEW);
-  const currentFamily = workspace.families[0];
+  const [currentFamilyId, setCurrentFamilyId] = useState(() => workspace.families[0]?.id ?? "");
+  const currentFamily = workspace.families.find(item => item.id === currentFamilyId) ?? workspace.families[0];
   const familyChildren = currentFamily?.children ?? [];
   const [currentChildId, setCurrentChildId] = useState(() => familyChildren[0]?.id ?? "");
+  const [childMenuOpen, setChildMenuOpen] = useState(false);
+  const [familyMenuOpen, setFamilyMenuOpen] = useState(false);
   const selectedChild = familyChildren.find(item => item.id === currentChildId) ?? familyChildren[0];
   const child = selectedChild?.name ?? "未设置小朋友";
-  const familyName = currentFamily?.name ?? "未加入家庭";
-  const canEditFamily = currentFamily?.role === "admin";
+  const familyName = isSuperAdmin ? "平台管理中心" : currentFamily?.name ?? "未加入家庭";
+  const canEditFamily = isSuperAdmin || currentFamily?.role === "admin";
+  const canEditContent = !isDemo && (canEditFamily || workspace.account.childId === currentChildId);
   const [cardItems, setCardItems] = useState(seedCards);
   const [isComposerOpen, setComposerOpen] = useState(false);
   const [isApiComposerOpen, setApiComposerOpen] = useState(false);
+  const [editingCard, setEditingCard] = useState<import("./api/client.js").ObservationCardSummary | null>(null);
+  const [viewingCard, setViewingCard] = useState<import("./api/client.js").ObservationCardSummary | null>(null);
   const [isApiTagOpen, setApiTagOpen] = useState(false);
   const [contentReloadKey, setContentReloadKey] = useState(0);
   const [draftText, setDraftText] = useState("");
@@ -231,6 +242,10 @@ function App({ workspace }: { workspace: Workspace }) {
   const [isMemberDialogOpen, setMemberDialogOpen] = useState(false);
   const [selectedFamilyMember, setSelectedFamilyMember] = useState<FamilyMemberSummary | null>(null);
   const [newMemberName, setNewMemberName] = useState("");
+  const [isChildDialogOpen, setChildDialogOpen] = useState(false);
+  const [newChildName, setNewChildName] = useState("");
+  const [newChildUsername, setNewChildUsername] = useState("");
+  const [newChildPin, setNewChildPin] = useState("");
   const [memberNotice, setMemberNotice] = useState("");
   const [handbookNotice, setHandbookNotice] = useState("");
   const [platformMemberItems, setPlatformMemberItems] = useState(platformMembers);
@@ -242,17 +257,23 @@ function App({ workspace }: { workspace: Workspace }) {
   const [newTagName, setNewTagName] = useState("");
   const [tagNotice, setTagNotice] = useState("");
   const [selectedHandbookDetail, setSelectedHandbookDetail] = useState<Handbook | null>(null);
-  const [selectedPublicHandbook, setSelectedPublicHandbook] = useState<PublicHandbook | null>(null);
+  const [selectedPublicationId, setSelectedPublicationId] = useState<string | null>(null);
   const [isHandbookEditorOpen, setHandbookEditorOpen] = useState(false);
   const [editHandbookTitle, setEditHandbookTitle] = useState("");
   const [editHandbookIntroduction, setEditHandbookIntroduction] = useState("");
   const [editHandbookCompletedAt, setEditHandbookCompletedAt] = useState("");
   const [editHandbookCover, setEditHandbookCover] = useState(photoChoices[0]);
+  useEffect(() => {
+    if (!currentFamily || !canEditFamily) return;
+    void apiClient.familyMembers(currentFamily.id).then(members => {
+      setFamilyMemberItems(members.map(member => ({ id: member.accountId, name: member.username, initial: member.username.slice(0, 1), role: member.role === "admin" ? "家庭管理员" : "只读成员", joinedAt: "已加入家庭", color: member.role === "admin" ? "green" : "olive" })));
+    }).catch(() => undefined);
+  }, [currentFamily?.id, canEditFamily]);
+  useEffect(() => { if (familyChildren.length && !familyChildren.some(item => item.id === currentChildId)) setCurrentChildId(familyChildren[0].id); }, [currentFamily?.id, currentChildId, familyChildren]);
   const heading = useMemo(() => activeNav === "今日记录" ? "八月的观察" : activeNav, [activeNav]);
   const isRecordView = activeNav === "今日记录";
   const isPublicSpace = activeNav === "公共空间";
   const isFamilyMembers = activeNav === "家庭成员";
-  const isSuperAdmin = workspace.account.platformRole === "super_admin";
   const isAdminMembers = activeNav === "后台成员管理";
   const isAdminTemplates = activeNav === "模板管理";
   const isAdminLogs = activeNav === "日志查看";
@@ -267,8 +288,6 @@ function App({ workspace }: { workspace: Workspace }) {
   const activeCardLayout = cardTemplateOptions.some(version => version.name === selectedCardLayout) ? selectedCardLayout : cardTemplateOptions[0]?.name;
   const currentTags = groupTagsByChild(tagItems, currentChildId) as ChildTagSummary[];
   const handbookDetailCards = selectedHandbookDetail ? filterObservationCardsByHandbook(cardItems, selectedHandbookDetail.id) : [];
-  const publicPreviewCards = selectedPublicHandbook?.sourceHandbookId ? filterObservationCardsByHandbook(cardItems, selectedPublicHandbook.sourceHandbookId) : seedCards.slice(0, 3);
-  const publishedFamilyHandbooks: PublicHandbook[] = handbookItems.filter(handbook => handbook.publishedAt).map(handbook => ({ title: handbook.title, introduction: handbook.introduction, family: familyName, child, publishedAt: handbook.publishedAt!, cardCount: handbook.cardCount, cover: handbook.cover, tag: "家庭观察", sourceHandbookId: handbook.id }));
   const actionLabel = isRecordView ? "新建记录" : activeNav === "标签管理" ? "新建标签" : activeNav === "导出文件" ? "导出手册" : "新建手册";
   const togglePhoto = (photo: string) => setDraftPhotos(current => current.includes(photo) ? current.filter(item => item !== photo) : current.length < 4 ? [...current, photo] : current);
   const toggleTag = (tag: string) => setDraftTags(current => current.includes(tag) ? current.filter(item => item !== tag) : [...current, tag]);
@@ -309,16 +328,24 @@ function App({ workspace }: { workspace: Workspace }) {
     setDraftText(""); setDraftPhotos([photoChoices[0]]); setDraftTags(["银杏"]); setComposerOpen(false);
   };
   const addFamilyMember = () => {
-    const name = newMemberName.trim() || "新成员";
-    setFamilyMemberItems(current => [...current, { id: `family-reader-${Date.now()}`, name, initial: name.slice(0, 1), role: "只读成员", joinedAt: "刚刚加入", color: "olive" }]);
-    setNewMemberName(""); setMemberNotice(`已添加 ${name} 为只读成员。`); setMemberDialogOpen(false);
+    const username = newMemberName.trim();
+    if (!currentFamily || !username) { setMemberNotice("请输入已注册成人的登录名。"); return; }
+    void apiClient.addFamilyMember(currentFamily.id, username).then(member => {
+      setFamilyMemberItems(current => [...current.filter(item => item.id !== member.accountId), { id: member.accountId, name: member.username, initial: member.username.slice(0, 1), role: "只读成员", joinedAt: "刚刚加入", color: "olive" }]);
+      setNewMemberName(""); setMemberNotice(`已添加 ${member.username} 为只读成员。`); setMemberDialogOpen(false);
+    }).catch(() => setMemberNotice("添加失败：该登录名不存在，或已在这个家庭中。"));
+  };
+  const addChildAccount = () => {
+    if (!currentFamily) return;
+    void apiClient.addChild(currentFamily.id, { name: newChildName.trim(), username: newChildUsername.trim(), pin: newChildPin.trim() }).then(() => window.location.reload()).catch(() => setMemberNotice("新增儿童账号失败：请检查姓名、登录名与 6 位 PIN。"));
   };
   const resetFamilyMemberPassword = (member: FamilyMemberSummary) => { setMemberNotice(`已向 ${member.name} 发起密码重置。`); setSelectedFamilyMember(null); };
   const deleteFamilyMember = (member: FamilyMemberSummary) => {
-    const domainMembers = familyMemberItems.map(item => ({ accountId: item.id, role: item.role === "家庭管理员" ? "family_admin" as const : "family_reader" as const }));
-    const remaining = removeFamilyMember(domainMembers, member.id);
-    setFamilyMemberItems(current => current.filter(item => remaining.some(next => next.accountId === item.id)));
-    setMemberNotice(`已移除只读成员 ${member.name}。`); setSelectedFamilyMember(null);
+    if (!currentFamily) return;
+    void apiClient.removeFamilyMember(currentFamily.id, member.id).then(() => {
+      setFamilyMemberItems(current => current.filter(item => item.id !== member.id));
+      setMemberNotice(`已移除只读成员 ${member.name}。`); setSelectedFamilyMember(null);
+    }).catch(() => setMemberNotice("移除失败，请稍后重试。"));
   };
   const toggleHandbookPublication = (handbook: Handbook) => {
     if (handbook.publishedAt) {
@@ -396,7 +423,8 @@ function App({ workspace }: { workspace: Workspace }) {
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><span className="brand-mark">O</span><span>观察手册</span></div>
-      <div className="family-label">{familyName} <span>⌄</span></div>
+      <button className="family-label" onClick={() => setFamilyMenuOpen(open => !open)}>{familyName} <span>⌄</span></button>
+      {familyMenuOpen && <div className="child-menu family-menu" role="menu">{workspace.families.map(item => <button key={item.id} className={item.id === currentFamily?.id ? "selected" : ""} onClick={() => { setCurrentFamilyId(item.id); setFamilyMenuOpen(false); }}>{item.name}</button>)}</div>}
       <nav aria-label="主导航">
         {["今日记录", "观察手册", "标签管理", "导出文件", "家庭成员"].map(item => <button key={item} className={activeNav === item ? "active" : ""} onClick={() => setActiveNav(item)}>{item}</button>)}
       </nav>
@@ -406,11 +434,12 @@ function App({ workspace }: { workspace: Workspace }) {
       </div>
       {isSuperAdmin && <div className="nav-section admin-nav"><p>后台中心</p><button className={isAdminMembers ? "active" : ""} onClick={() => setActiveNav("后台成员管理")}>成员管理</button><button className={isAdminTemplates ? "active" : ""} onClick={() => setActiveNav("模板管理")}>模板管理</button><button className={isAdminLogs ? "active" : ""} onClick={() => setActiveNav("日志查看")}>日志查看</button></div>}
       <div className="sidebar-bottom">
-        <button className="child-switcher" disabled={familyChildren.length < 2} onClick={() => { const index = familyChildren.findIndex(item => item.id === currentChildId); setCurrentChildId(familyChildren[(index + 1) % familyChildren.length]?.id ?? currentChildId); }}>
+        <button className="child-switcher" onClick={() => setChildMenuOpen(open => !open)}>
           <span className="avatar">{child.slice(0, 1)}</span>
           <span><b>{child}</b><small>切换小朋友</small></span><i>⌄</i>
         </button>
-        <button className="account"><span className="account-avatar">{workspace.account.username.slice(0, 1)}</span><span>{workspace.account.username}<small>{canEditFamily ? "家庭管理员" : "只读成员"}</small></span></button>
+        {childMenuOpen && <div className="child-menu" role="menu">{familyChildren.map(item => <button key={item.id} className={item.id === currentChildId ? "selected" : ""} onClick={() => { setCurrentChildId(item.id); setChildMenuOpen(false); }}>{item.name}</button>)}</div>}
+        <button className="account" onClick={() => { void apiClient.logout().catch(() => undefined); window.dispatchEvent(new Event("observation-handbook:logout")); }}><span className="account-avatar">{workspace.account.username.slice(0, 1)}</span><span>{workspace.account.username}<small>{isDemo ? "公开示例 · 只读" : isSuperAdmin ? "超级管理员" : canEditFamily ? "家庭管理员" : workspace.account.childId ? "儿童记录者" : "只读成员"}</small></span><em>退出</em></button>
       </div>
     </aside>
 
@@ -418,11 +447,10 @@ function App({ workspace }: { workspace: Workspace }) {
       <header className="topbar">
         <button className="mobile-menu" aria-label="打开导航">☰</button>
         <div className="crumb"><span>家庭端</span><b>/</b><strong>{activeNav}</strong></div>
-        <div className="top-actions"><button className="search">⌕ <span>搜索</span></button>{canEditFamily && !isPublicSpace && !isFamilyMembers && !isAdminCenter && <button className="new-card" onClick={() => isRecordView ? setApiComposerOpen(true) : activeNav === "观察手册" ? setHandbookDialogOpen(true) : activeNav === "标签管理" ? setApiTagOpen(true) : activeNav === "导出文件" ? setExportDialogOpen(true) : undefined}>＋ {actionLabel}</button>}</div>
+        <div className="top-actions"><button className="search">⌕ <span>搜索</span></button>{canEditContent && !isPublicSpace && !isFamilyMembers && !isAdminCenter && activeNav !== "导出文件" && <button className="new-card" onClick={() => isRecordView ? setApiComposerOpen(true) : activeNav === "观察手册" ? setHandbookDialogOpen(true) : activeNav === "标签管理" ? setApiTagOpen(true) : undefined}>＋ {actionLabel}</button>}</div>
       </header>
       <section className="page-heading">
-        <div><p className="eyebrow">{isAdminCenter ? "平台管理 · 超级管理员" : isPublicSpace ? "公共观察档案 · 正在持续更新" : `${child}的观察档案 · 2026`}</p><h1>{isAdminMembers ? "成员管理" : heading}</h1><p className="subhead">{isRecordView ? "把当下的发现，收进时间的册页。" : activeNav === "观察手册" ? "将同一主题的发现编成可以持续生长的手册。" : activeNav === "标签管理" ? "为观察命名，并把同一主题的记录聚拢在一起。" : activeNav === "导出文件" ? "生成后可下载或删除；屏幕版无出血，印刷版含 3mm 出血与裁切线。" : isFamilyMembers ? "一个家庭只有一位管理员，其他成人仅可查看内容。" : isAdminMembers ? "管理后台成员、权限和密码重置。" : isAdminTemplates ? "分别维护封面、封底和卡片的固定模板版本。" : isAdminLogs ? "查看平台操作与关键事件记录。" : "来自不同家庭的持续观察手册。"}</p></div>
-        <div className="summary"><b>{isRecordView ? "06" : isPublicSpace ? "03" : "03"}</b><span>{isRecordView ? "本月记录" : isPublicSpace ? "新近发布" : "观察手册"}</span><em></em><b>{isRecordView ? "04" : isPublicSpace ? "51" : "39"}</b><span>{isRecordView ? "观察主题" : isPublicSpace ? "收录卡片" : "收录卡片"}</span></div>
+        <div><p className="eyebrow">{isAdminCenter ? "平台管理 · 超级管理员" : isPublicSpace ? "公共观察档案 · 正在持续更新" : `${familyName} · 当前小朋友`}</p><h1>{isAdminMembers ? "成员管理" : isAdminCenter || isPublicSpace ? heading : `${child} · ${heading}`}</h1><p className="subhead">{isRecordView ? "把当下的发现，收进时间的册页。" : activeNav === "观察手册" ? "将同一主题的发现编成可以持续生长的手册。" : activeNav === "标签管理" ? "为观察命名，并把同一主题的记录聚拢在一起。" : activeNav === "导出文件" ? "生成后可下载或删除；屏幕版无出血，印刷版含 3mm 出血与裁切线。" : isFamilyMembers ? "一个家庭只有一位管理员，其他成人仅可查看内容。" : isAdminMembers ? "管理后台成员、权限和密码重置。" : isAdminTemplates ? "分别维护封面、封底和卡片的固定模板版本。" : isAdminLogs ? "查看平台操作与关键事件记录。" : "来自不同家庭的持续观察手册。"}</p></div>
       </section>
       {isRecordView && <section className="toolbar">
         <div className="month-select">2026 年 08 月 <span>⌄</span></div>
@@ -431,15 +459,15 @@ function App({ workspace }: { workspace: Workspace }) {
       </section>}
       {isRecordView && <section className="month-view">
         <div className="month-rule"><span>08</span><i></i><p>2026 · 八月</p></div>
-        <ChildContentLoader key={`${currentChildId}-${contentReloadKey}`} childId={currentChildId} view={view} canEdit={canEditFamily} onChanged={() => setContentReloadKey(key => key + 1)} />
+        <ChildContentLoader key={`${currentChildId}-${contentReloadKey}`} childId={currentChildId} view={view} canEdit={canEditContent} loadCards={isDemo ? demoLoadCards : undefined} onOpen={isDemo ? setViewingCard : undefined} onEdit={card => { setEditingCard(card); setApiComposerOpen(true); }} onChanged={() => setContentReloadKey(key => key + 1)} />
       </section>}
-      {activeNav === "观察手册" && <section className="handbook-view"><div className="handbook-rule"><p>正在整理</p><i></i><span>按最近更新</span></div><ChildHandbookList key={`${currentChildId}-${contentReloadKey}`} childId={currentChildId} canEdit={canEditFamily} onChanged={() => setContentReloadKey(key => key + 1)} /></section>}
-      {activeNav === "标签管理" && <section className="tag-view"><div className="tag-rule"><p>全部标签</p><i></i><span>当前小朋友的观察主题</span></div><ChildTagList key={`${currentChildId}-${contentReloadKey}`} childId={currentChildId} /></section>}
-      {activeNav === "导出文件" && <ExportWorkspace childId={currentChildId} canEdit={canEditFamily} />}
-      {isPublicSpace && <section className="public-space-view">{selectedPublicHandbook ? <><div className="admin-rule"><p>公共阅读</p><i></i><button onClick={() => setSelectedPublicHandbook(null)}>← 返回公共空间</button></div><article className="handbook-detail public-reading"><img src={imageUrl(selectedPublicHandbook.cover, 900)} alt="" /><div><span>公开手册</span><h2>{selectedPublicHandbook.title}</h2><p>{selectedPublicHandbook.introduction}</p><dl><div><dt>发布家庭</dt><dd>{selectedPublicHandbook.family}</dd></div><div><dt>记录者</dt><dd>{selectedPublicHandbook.child}</dd></div><div><dt>发布时间</dt><dd>{selectedPublicHandbook.publishedAt}</dd></div></dl></div></article><div className="public-rule detail-rule"><p>观察预览</p><i></i><span>{selectedPublicHandbook.cardCount} 张公开卡片</span></div><div className="card-grid">{publicPreviewCards.map(card => <CardTile key={card.id} card={card} />)}</div></> : <><div className="public-rule"><p>最新发布</p><i></i><span>全部公开手册</span></div><div className="public-handbook-grid">{[...publishedFamilyHandbooks, ...publicHandbooks].map(handbook => <PublicHandbookTile key={`${handbook.family}-${handbook.title}`} handbook={handbook} onOpen={setSelectedPublicHandbook} />)}</div></>}</section>}
-      {isFamilyMembers && <section className="members-view">{memberNotice && <div className="export-success"><span>✓</span>{memberNotice}<button aria-label="关闭提示" onClick={() => setMemberNotice("")}>×</button></div>}<div className="members-note"><b>成员权限</b><span>管理员可管理家庭、小朋友与发布；只读成员仅能查看。</span></div><div className="members-rule"><p>家庭成员</p><i></i><span>{familyMemberItems.length} 位成人</span><button onClick={() => setMemberDialogOpen(true)}>＋ 添加成员</button></div><div className="members-list">{familyMemberItems.map(member => <FamilyMemberRow key={member.id} member={member} onManage={setSelectedFamilyMember} />)}</div></section>}
+      {activeNav === "观察手册" && <section className="handbook-view"><div className="handbook-rule"><p>正在整理</p><i></i><span>按最近更新</span></div><ChildHandbookList key={`${currentChildId}-${contentReloadKey}`} childId={currentChildId} childName={child} canEdit={canEditContent} canPublish={canEditFamily && !isDemo} loadHandbooks={isDemo ? demoLoadHandbooks : undefined} loadCards={isDemo ? demoLoadCards : undefined} onChanged={() => setContentReloadKey(key => key + 1)} /></section>}
+      {activeNav === "标签管理" && <section className="tag-view"><div className="tag-rule"><p>全部标签</p><i></i><span>当前小朋友的观察主题</span></div><ChildTagList key={`${currentChildId}-${contentReloadKey}`} childId={currentChildId} canEdit={canEditContent} onChanged={() => setContentReloadKey(key => key + 1)} loadTags={isDemo ? demoLoadTags : undefined} /></section>}
+      {activeNav === "导出文件" && <ExportWorkspace childId={currentChildId} canEdit={canEditContent} readOnly={isDemo} loadHandbooks={isDemo ? demoLoadHandbooks : undefined} loadExports={isDemo ? demoLoadExports : undefined} />}
+      {isPublicSpace && <section className="public-space-view"><div className="public-rule"><p>最新发布</p><i></i><span>全部公开手册</span></div><PublicHandbookList onOpen={setSelectedPublicationId} />{selectedPublicationId && <PublicHandbookReader id={selectedPublicationId} onClose={() => setSelectedPublicationId(null)} />}</section>}
+      {isFamilyMembers && <section className="members-view">{memberNotice && <div className="export-success"><span>✓</span>{memberNotice}<button aria-label="关闭提示" onClick={() => setMemberNotice("")}>×</button></div>}<div className="members-note"><b>成员权限</b><span>管理员可管理家庭、小朋友与发布；只读成员仅能查看。</span></div><div className="members-rule"><p>家庭成员</p><i></i><span>{familyMemberItems.length} 位成人</span>{canEditFamily && <><button onClick={() => setChildDialogOpen(true)}>＋ 添加小朋友</button><button onClick={() => setMemberDialogOpen(true)}>＋ 添加成员</button></>}</div><div className="members-list">{familyMemberItems.map(member => <FamilyMemberRow key={member.id} member={member} onManage={canEditFamily ? setSelectedFamilyMember : undefined} />)}</div></section>}
       {isAdminMembers && <section className="admin-view">{adminNotice && <div className="export-success"><span>✓</span>{adminNotice}<button aria-label="关闭提示" onClick={() => setAdminNotice("")}>×</button></div>}{selectedAdminFamilyAccount ? <><div className="admin-rule"><p>家庭账号详情</p><i></i><button onClick={() => setSelectedAdminFamilyAccount(null)}>← 返回列表</button></div><div className="admin-stats"><article><span>家庭管理员</span><b>{selectedAdminFamilyAccount.administrator}</b><p>唯一管理权限</p></article><article><span>家庭成人</span><b>{getFamilyAccountPopulation(selectedAdminFamilyAccount).adults}</b><p>{selectedAdminFamilyAccount.readers} 位只读成人</p></article><article><span>小朋友</span><b>{getFamilyAccountPopulation(selectedAdminFamilyAccount).children}</b><p>独立观察档案</p></article></div><div className="members-note"><b>{selectedAdminFamilyAccount.family}</b><span>最近活动 · {selectedAdminFamilyAccount.updatedAt}。成员、观察内容和导出文件均在该家庭范围内隔离管理。</span></div><div className="admin-rule spaced"><p>账号操作</p><i></i><button onClick={() => { setAdminNotice(`已进入 ${selectedAdminFamilyAccount.family} 的家庭成员管理。`); setAdminLogItems(current => [`进入 ${selectedAdminFamilyAccount.family} 的成员管理`, ...current]); }}>管理家庭成员 →</button></div></> : <><div className="admin-rule"><p>后台成员</p><i></i><button onClick={addPlatformMember}>＋ 添加成员</button></div><div className="platform-member-list">{platformMemberItems.map(member => <PlatformMemberRow key={member.id} member={member} onRoleChange={changePlatformRole} onResetPassword={resetPlatformPassword} onDelete={deletePlatformMember} />)}</div><div className="admin-rule spaced"><p>家庭账号</p><i></i><span>{familyAccounts.length} 个家庭</span></div><div className="family-account-list">{familyAccounts.map(account => <FamilyAccountRow key={account.family} account={account} onManage={openFamilyAccount} />)}</div></>}</section>}
-      {isAdminTemplates && <TemplateManagementPage loadTemplates={apiClient.adminTemplates} retireTemplate={apiClient.removeTemplate} />}
+      {isAdminTemplates && <TemplateManagementPage loadTemplates={apiClient.adminTemplates} createTemplate={apiClient.createTemplate} updateTemplate={apiClient.updateTemplate} publishTemplate={id => apiClient.updateTemplate(id, { state: "published" })} removeTemplate={apiClient.removeTemplate} />}
       {isAdminLogs && <section className="admin-view"><div className="admin-rule"><p>操作日志</p><i></i><button>筛选 ▾</button></div><div className="admin-template-list">{adminLogItems.map((entry, index) => <div className="admin-log" key={`${entry}-${index}`}><b>{index === 0 ? "刚刚" : index === 1 ? "10:42" : "昨天"}</b><span>{entry}</span><button>详情 →</button></div>)}</div></section>}
       {isComposerOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => setComposerOpen(false)}><form className="card-composer" onSubmit={(event) => { event.preventDefault(); saveCard(); }} onMouseDown={event => event.stopPropagation()}>
         <header><div><p>为 {child} 新建</p><h2>观察卡片</h2></div><button type="button" aria-label="关闭新建卡片" onClick={() => setComposerOpen(false)}>×</button></header>
@@ -450,12 +478,14 @@ function App({ workspace }: { workspace: Workspace }) {
         <span className="field-label">添加标签</span><div className="composer-tags">{currentTags.map(tag => <button type="button" className={draftTags.includes(tag.name) ? "picked" : ""} key={tag.name} onClick={() => toggleTag(tag.name)}>#{tag.name}</button>)}</div>
         <footer><button type="button" onClick={() => setComposerOpen(false)}>取消</button><button className="save-card" type="submit">保存记录</button></footer>
       </form></div>}
-      {isApiComposerOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => setApiComposerOpen(false)}><div onMouseDown={event => event.stopPropagation()}><CreateObservationCardForm childId={currentChildId} onCreated={() => { setApiComposerOpen(false); setContentReloadKey(key => key + 1); }} /></div></div>}
+      {isApiComposerOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => { setApiComposerOpen(false); setEditingCard(null); }}><div onMouseDown={event => event.stopPropagation()}><CreateObservationCardForm childId={currentChildId} handbookRefreshKey={contentReloadKey} existingCard={editingCard} archiveCard={apiClient.archiveCard} onArchived={() => { setApiComposerOpen(false); setEditingCard(null); setContentReloadKey(key => key + 1); }} onRequestCreateHandbook={() => { setHandbookDialogOpen(true); }} onCancel={() => { setApiComposerOpen(false); setEditingCard(null); }} onCreated={() => { setContentReloadKey(key => key + 1); }} /></div></div>}
+      {viewingCard && <div className="composer-backdrop" role="presentation" onMouseDown={() => setViewingCard(null)}><div onMouseDown={event => event.stopPropagation()}><CreateObservationCardForm childId={currentChildId} existingCard={viewingCard} readOnly loadTemplates={async () => []} loadTags={isDemo ? demoLoadTags : undefined} loadHandbooks={isDemo ? demoLoadHandbooks : undefined} onCancel={() => setViewingCard(null)} onCreated={() => setViewingCard(null)} /></div></div>}
       {isExportDialogOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => setExportDialogOpen(false)}><form className="export-dialog" onSubmit={(event) => { event.preventDefault(); generateExport(); }} onMouseDown={event => event.stopPropagation()}><header><div><p>生成新文件</p><h2>导出手册</h2></div><button type="button" aria-label="关闭导出手册" onClick={() => setExportDialogOpen(false)}>×</button></header><label className="field-label" htmlFor="export-handbook">选择观察手册</label><select id="export-handbook" value={selectedHandbookId} onChange={event => setSelectedHandbookId(event.target.value)}>{handbookItems.map(handbook => <option value={handbook.id} key={handbook.id}>{handbook.title} · {handbook.cardCount} 张卡片</option>)}</select><span className="field-label">选择 PDF 类型</span><div className="pdf-kind-options"><label className={selectedPdfKind === "screen" ? "selected" : ""}><input type="radio" checked={selectedPdfKind === "screen"} onChange={() => setSelectedPdfKind("screen")} name="pdf-kind" /> <b>屏幕 PDF</b><span>电脑、手机、平板查看；无出血、无裁切线。</span></label><label className={selectedPdfKind === "print" ? "selected" : ""}><input type="radio" checked={selectedPdfKind === "print"} onChange={() => setSelectedPdfKind("print")} name="pdf-kind" /> <b>印刷 PDF</b><span>3mm 出血、裁切线；生成前执行印刷预检。</span></label></div><footer><button type="button" onClick={() => setExportDialogOpen(false)}>取消</button><button className="save-card" type="submit">确认生成</button></footer></form></div>}
-      {isHandbookDialogOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => setHandbookDialogOpen(false)}><div onMouseDown={event => event.stopPropagation()}><CreateHandbookForm childId={currentChildId} onCreated={() => { setHandbookDialogOpen(false); setContentReloadKey(key => key + 1); }} /></div></div>}
+      {isHandbookDialogOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => setHandbookDialogOpen(false)}><div onMouseDown={event => event.stopPropagation()}><CreateHandbookForm childId={currentChildId} loadCards={isDemo ? demoLoadCards : undefined} onCreated={() => { setHandbookDialogOpen(false); setContentReloadKey(key => key + 1); }} /></div></div>}
       {isHandbookEditorOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => setHandbookEditorOpen(false)}><form className="export-dialog" onSubmit={event => { event.preventDefault(); saveHandbookEditor(); }} onMouseDown={event => event.stopPropagation()}><header><div><p>A5 竖版观察手册</p><h2>编辑手册</h2></div><button type="button" aria-label="关闭编辑手册" onClick={() => setHandbookEditorOpen(false)}>×</button></header><label className="field-label" htmlFor="edit-handbook-title">手册名称</label><input id="edit-handbook-title" value={editHandbookTitle} onChange={event => setEditHandbookTitle(event.target.value)} /><label className="field-label" htmlFor="edit-handbook-introduction">内容介绍</label><textarea id="edit-handbook-introduction" value={editHandbookIntroduction} onChange={event => setEditHandbookIntroduction(event.target.value)} rows={2} /><label className="field-label" htmlFor="edit-handbook-completed-at">完成时间 <small>可留空</small></label><input id="edit-handbook-completed-at" type="date" value={editHandbookCompletedAt} onChange={event => setEditHandbookCompletedAt(event.target.value)} /><label className="field-label" htmlFor="edit-handbook-cover">封面照片</label><select id="edit-handbook-cover" value={editHandbookCover} onChange={event => setEditHandbookCover(event.target.value)}>{photoChoices.map((photo, index) => <option key={photo} value={photo}>观察照片 {index + 1}</option>)}</select><p className="dialog-note">纸张大小与模板规格固定为 A5 竖版；公开中的手册会同步更新公共阅读页。</p><footer><button type="button" onClick={() => setHandbookEditorOpen(false)}>取消</button><button className="save-card" type="submit">保存修改</button></footer></form></div>}
       {templateEditor && <div className="composer-backdrop" role="presentation" onMouseDown={() => setTemplateEditor(null)}><form className="export-dialog" onSubmit={event => { event.preventDefault(); saveTemplateVersion(); }} onMouseDown={event => event.stopPropagation()}><header><div><p>模板版本</p><h2>编辑模板</h2></div><button type="button" aria-label="关闭编辑模板" onClick={() => setTemplateEditor(null)}>×</button></header><label className="field-label" htmlFor="template-version-name">模板名称</label><input id="template-version-name" value={templateVersionName} onChange={event => setTemplateVersionName(event.target.value)} /><p className="dialog-note">版式所属纸张大小和模板类型不能在此修改，以保持已创建手册的版面规则。</p><footer><button type="button" onClick={() => setTemplateEditor(null)}>取消</button><button className="save-card" type="submit">保存修改</button></footer></form></div>}
-      {isMemberDialogOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => setMemberDialogOpen(false)}><form className="export-dialog" onSubmit={event => { event.preventDefault(); addFamilyMember(); }} onMouseDown={event => event.stopPropagation()}><header><div><p>家庭成员</p><h2>添加只读成员</h2></div><button type="button" aria-label="关闭添加成员" onClick={() => setMemberDialogOpen(false)}>×</button></header><label className="field-label" htmlFor="family-member-name">成员姓名</label><input id="family-member-name" value={newMemberName} onChange={event => setNewMemberName(event.target.value)} placeholder="例如：王小明" /><p className="dialog-note">家庭仅保留一位管理员；新加入的成人默认为只读成员。</p><footer><button type="button" onClick={() => setMemberDialogOpen(false)}>取消</button><button className="save-card" type="submit">添加成员</button></footer></form></div>}
+      {isMemberDialogOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => setMemberDialogOpen(false)}><form className="export-dialog" onSubmit={event => { event.preventDefault(); addFamilyMember(); }} onMouseDown={event => event.stopPropagation()}><header><div><p>家庭成员</p><h2>添加只读成员</h2></div><button type="button" aria-label="关闭添加成员" onClick={() => setMemberDialogOpen(false)}>×</button></header><label className="field-label" htmlFor="family-member-name">成员登录名</label><input id="family-member-name" value={newMemberName} onChange={event => setNewMemberName(event.target.value)} placeholder="输入对方已注册的登录名" /><p className="dialog-note">家庭仅保留一位管理员；新加入的成人默认为只读成员。</p><footer><button type="button" onClick={() => setMemberDialogOpen(false)}>取消</button><button className="save-card" type="submit">添加成员</button></footer></form></div>}
+      {isChildDialogOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => setChildDialogOpen(false)}><form className="export-dialog" onSubmit={event => { event.preventDefault(); addChildAccount(); }} onMouseDown={event => event.stopPropagation()}><header><div><p>儿童账号</p><h2>添加小朋友</h2></div><button type="button" aria-label="关闭添加小朋友" onClick={() => setChildDialogOpen(false)}>×</button></header><label className="field-label">小朋友名字</label><input value={newChildName} onChange={event => setNewChildName(event.target.value)} required /><label className="field-label">儿童登录名</label><input value={newChildUsername} onChange={event => setNewChildUsername(event.target.value)} placeholder="3–32 位字母、数字或 _ -" required /><label className="field-label">6 位登录 PIN</label><input inputMode="numeric" pattern="[0-9]{6}" value={newChildPin} onChange={event => setNewChildPin(event.target.value)} required /><p className="dialog-note">儿童登录后只能记录、修改和导出自己的观察档案。</p><footer><button type="button" onClick={() => setChildDialogOpen(false)}>取消</button><button className="save-card" type="submit">创建儿童账号</button></footer></form></div>}
       {selectedFamilyMember && <div className="composer-backdrop" role="presentation" onMouseDown={() => setSelectedFamilyMember(null)}><section className="export-dialog" onMouseDown={event => event.stopPropagation()}><header><div><p>成员权限</p><h2>{selectedFamilyMember.name}</h2></div><button type="button" aria-label="关闭成员管理" onClick={() => setSelectedFamilyMember(null)}>×</button></header><p className="dialog-note">{selectedFamilyMember.role === "家庭管理员" ? "家庭管理员为唯一管理角色，可管理家庭、小朋友与发布，不能删除或降级。" : "只读成员只能查看家庭内容，不能创建、修改或发布。"}</p><footer><button type="button" onClick={() => resetFamilyMemberPassword(selectedFamilyMember)}>重置密码</button>{selectedFamilyMember.role === "只读成员" ? <button className="delete-export" type="button" onClick={() => deleteFamilyMember(selectedFamilyMember)}>移除成员</button> : <button type="button" disabled>唯一管理员</button>}</footer></section></div>}
       {isTagDialogOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => setTagDialogOpen(false)}><form className="export-dialog" onSubmit={event => { event.preventDefault(); addTag(); }} onMouseDown={event => event.stopPropagation()}><header><div><p>{child}的观察档案</p><h2>新建标签</h2></div><button type="button" aria-label="关闭新建标签" onClick={() => setTagDialogOpen(false)}>×</button></header><label className="field-label" htmlFor="tag-name">标签名称</label><input id="tag-name" value={newTagName} onChange={event => setNewTagName(event.target.value)} placeholder="例如：落叶" /><p className="dialog-note">标签仅归入当前小朋友，可在新建观察卡片时直接使用。</p><footer><button type="button" onClick={() => setTagDialogOpen(false)}>取消</button><button className="save-card" type="submit">创建标签</button></footer></form></div>}
       {isApiTagOpen && <div className="composer-backdrop" role="presentation" onMouseDown={() => setApiTagOpen(false)}><div onMouseDown={event => event.stopPropagation()}><CreateTagForm childId={currentChildId} onCreated={() => { setApiTagOpen(false); setContentReloadKey(key => key + 1); }} /></div></div>}

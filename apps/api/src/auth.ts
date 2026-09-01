@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { and, eq, gt, ne } from "drizzle-orm";
 import type { AppDatabase } from "./db/client.js";
-import { accounts, familyMemberships, sessions } from "./db/schema.js";
+import { accounts, children, familyMemberships, sessions } from "./db/schema.js";
 
 const sessionLifetimeMs = 30 * 24 * 60 * 60 * 1_000;
 
@@ -10,6 +10,7 @@ export type RequestActor = {
   username: string;
   platformRole: "super_admin" | "operations_admin" | null;
   memberships: Array<{ familyId: string; role: "admin" | "reader" }>;
+  childId: string | null;
 };
 
 export async function createSession(database: AppDatabase, accountId: string, now = new Date()): Promise<{ rawToken: string; expiresAt: Date }> {
@@ -40,11 +41,14 @@ export async function getActorFromToken(database: AppDatabase, rawToken: string,
     .from(familyMemberships)
     .where(eq(familyMemberships.accountId, account.id));
 
+  const childAccount = await database.query.children.findFirst({ where: eq(children.accountId, account.id) });
+
   return {
     accountId: account.id,
     username: account.username,
     platformRole: account.platformRole,
     memberships,
+    childId: childAccount?.id ?? null,
   };
 }
 

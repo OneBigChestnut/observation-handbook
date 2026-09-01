@@ -14,11 +14,11 @@ export type StoredMedia = {
   height: number;
 };
 
-export async function storeChildImage(input: { mediaDirectory: string; mimeType: string; data: Buffer }): Promise<StoredMedia> {
+export async function storeChildImage(input: { mediaDirectory: string; mimeType: string; data: Buffer; id?: string }): Promise<StoredMedia> {
   const extension = EXTENSIONS[input.mimeType];
   if (!extension) throw new Error("MEDIA_IMAGE_REQUIRED");
 
-  const id = randomUUID();
+  const id = input.id ?? randomUUID();
   const originalPath = `originals/${id}.${extension}`;
   const thumbnailPath = `thumbnails/${id}.jpg`;
   const image = sharp(input.data, { failOn: "error" }).rotate();

@@ -5,12 +5,20 @@ const scrypt = promisify(scryptCallback);
 const hashLength = 64;
 
 export async function hashPassword(password: string): Promise<string> {
-  if (password.length < 12) {
-    throw new Error("password must contain at least 12 characters");
+  if (password.length < 8) {
+    throw new Error("password must contain at least 8 characters");
   }
 
   const salt = randomBytes(16);
   const derived = await scrypt(password, salt, hashLength) as Buffer;
+  return `scrypt$${salt.toString("base64")}$${derived.toString("base64")}`;
+}
+
+/** Child sign-in uses a six digit PIN; it is hashed with the same scrypt settings. */
+export async function hashChildPin(pin: string): Promise<string> {
+  if (!/^\d{6}$/.test(pin)) throw new Error("child pin must contain exactly 6 digits");
+  const salt = randomBytes(16);
+  const derived = await scrypt(pin, salt, hashLength) as Buffer;
   return `scrypt$${salt.toString("base64")}$${derived.toString("base64")}`;
 }
 

@@ -1,9 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { resolve, sep } from "node:path";
+import { resolve, sep, basename } from "node:path";
+import { fileURLToPath } from "node:url";
 import { eq } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
-import { requireChildAccess, requireFamilyAdmin } from "@observation-handbook/domain";
+import { requireChildAccess, requireChildEdit } from "@observation-handbook/domain";
 import { getActorFromToken } from "../auth.js";
 import type { ApiConfig } from "../config.js";
 import type { AppDatabase } from "../db/client.js";
@@ -20,9 +21,9 @@ export const registerMediaRoutes: FastifyPluginAsync<MediaRouteOptions> = async 
     const child = await options.database.query.children.findFirst({ where: eq(children.id, request.params.childId) });
     if (!child) return reply.code(404).send({ code: "CHILD_NOT_FOUND" });
     try {
-      requireFamilyAdmin(actor, child.familyId);
+      requireChildEdit(actor, child);
     } catch (error) {
-      return reply.code(403).send({ code: error instanceof Error ? error.message : "FAMILY_ADMIN_REQUIRED" });
+      return reply.code(403).send({ code: error instanceof Error ? error.message : "CHILD_EDIT_REQUIRED" });
     }
 
     const upload = await request.file();
@@ -63,5 +64,34 @@ export const registerMediaRoutes: FastifyPluginAsync<MediaRouteOptions> = async 
     } catch {
       return reply.code(404).send({ code: "MEDIA_NOT_FOUND" });
     }
+  });
+
+  // Demo template photos are read-only public assets, separate from family media.
+  app.get<{ Params: { mediaId: string } }>("/api/template-media/:mediaId/thumbnail", async (request, reply) => {
+    if (!request.params.mediaId.startsWith("demo-media-")) return reply.code(404).send({ code: "MEDIA_NOT_FOUND" });
+    const media = await options.database.query.mediaAssets.findFirst({ where: eq(mediaAssets.id, request.params.mediaId) });
+    if (!media) return reply.code(404).send({ code: "MEDIA_NOT_FOUND" });
+    const mediaDirectory = resolve(options.config.mediaDirectory);
+    const filePath = resolve(mediaDirectory, media.thumbnailPath);
+    if (!filePath.startsWith(`${mediaDirectory}${sep}`)) return reply.code(404).send({ code: "MEDIA_NOT_FOUND" });
+    try {
+      return reply.type(media.mimeType).send(await readFile(filePath));
+    } catch {
+      return reply.code(404).send({ code: "MEDIA_NOT_FOUND" });
+    }
+  });
+
+  // The larger public demo library is stored locally with its attribution manifest.
+  app.get("/api/demo-media/manifest", async (_request, reply) => {
+    const manifestPath = fileURLToPath(new URL("../../data/demo-media/library/manifest.json", import.meta.url));
+    try { return reply.type("application/json").send(await readFile(manifestPath, "utf8")); } catch { return reply.code(404).send({ code: "MEDIA_MANIFEST_NOT_FOUND" }); }
+  });
+  app.get<{ Params: { series: string; kind: string; filename: string } }>("/api/demo-media/:series/:kind/:filename", async (request, reply) => {
+    const { series, kind, filename } = request.params;
+    if (!/^[a-z0-9-]+$/.test(series) || !["originals", "thumbnails"].includes(kind) || basename(filename) !== filename || !/^[a-zA-Z0-9_.-]+\.jpg$/.test(filename)) return reply.code(404).send({ code: "MEDIA_NOT_FOUND" });
+    const libraryRoot = resolve(fileURLToPath(new URL("../../data/demo-media/library", import.meta.url)));
+    const filePath = resolve(libraryRoot, series, kind, filename);
+    if (!filePath.startsWith(`${libraryRoot}${sep}`)) return reply.code(404).send({ code: "MEDIA_NOT_FOUND" });
+    try { return reply.type("image/jpeg").send(await readFile(filePath)); } catch { return reply.code(404).send({ code: "MEDIA_NOT_FOUND" }); }
   });
 };

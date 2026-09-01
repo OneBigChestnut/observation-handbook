@@ -2,7 +2,6 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError } from "../api/client.js";
 import { ChildContentLoader } from "./ChildContentLoader.js";
 
 afterEach(cleanup);
@@ -17,20 +16,19 @@ describe("ChildContentLoader", () => {
     expect(loadCards).toHaveBeenCalledWith("child-a");
   });
 
-  it("allows an administrator to edit a card and explains why a referenced card cannot be archived", async () => {
-    const card = { id: "card-a", observedAt: "2026-08-22", text: "叶子变黄了", photos: [], tags: [] };
-    const updateCard = vi.fn().mockResolvedValue(card);
-    const archiveCard = vi.fn().mockRejectedValue(new ApiError(409, "CARD_REFERENCED", { affectedHandbookIds: ["handbook-a"] }));
+  it("passes the complete card to the edit workbench and shows card metadata", async () => {
+    const card = { id: "card-a", observedAt: "2026-08-22", createdAt: "2026-08-22T09:30:00.000Z", text: "叶子变黄了", photos: [], tags: [{ id: "tag-a", name: "银杏", color: "ochre" }], handbooks: [{ id: "handbook-a", title: "公园的一年" }] };
+    const onEdit = vi.fn();
 
-    render(<ChildContentLoader childId="child-a" canEdit loadCards={vi.fn().mockResolvedValue([card])} updateCard={updateCard} archiveCard={archiveCard} />);
+    render(<ChildContentLoader childId="child-a" canEdit onEdit={onEdit} loadCards={vi.fn().mockResolvedValue([card])} />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "编辑" }));
-    fireEvent.change(screen.getByRole("textbox", { name: "编辑观察文字" }), { target: { value: "叶子完全变黄了" } });
-    fireEvent.click(screen.getByRole("button", { name: "保存" }));
-    expect(updateCard).toHaveBeenCalledWith("card-a", { text: "叶子完全变黄了" });
+    expect(await screen.findByText("#银杏")).toBeInTheDocument();
+    expect(screen.getByText("公园的一年")).toBeInTheDocument();
+    expect(screen.getByText("制作于 2026-08-22")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "打开卡片编辑" }));
+    expect(onEdit).toHaveBeenCalledWith(card);
 
-    fireEvent.click(screen.getByRole("button", { name: "归档" }));
-    expect(await screen.findByRole("status")).toHaveTextContent("已被 1 本手册收录（handbook-a），不能归档");
+    expect(screen.queryByRole("button", { name: "删除卡片" })).not.toBeInTheDocument();
   });
 
   it("does not render mutation controls for a reader", async () => {
@@ -38,5 +36,14 @@ describe("ChildContentLoader", () => {
     await screen.findByText("叶子变黄了");
     expect(screen.queryByRole("button", { name: "编辑" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "归档" })).not.toBeInTheDocument();
+  });
+
+  it("shows a load error instead of pretending there are no records, then retries", async () => {
+    const loadCards = vi.fn().mockRejectedValueOnce(new Error("network")).mockResolvedValueOnce([]);
+    render(<ChildContentLoader childId="child-a" loadCards={loadCards} />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("观察记录加载失败");
+    fireEvent.click(screen.getByRole("button", { name: "重试加载观察记录" }));
+    expect(loadCards).toHaveBeenCalledTimes(2);
   });
 });

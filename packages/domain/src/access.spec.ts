@@ -17,3 +17,11 @@ describe("family administrator invariants", () => {
     ], { accountId: "admin-1", role: "reader" })).toThrow("FAMILY_ADMIN_REQUIRED");
   });
 });
+
+describe("platform access", () => {
+  it("allows a super admin to read and administer any family", () => {
+    const actor = { platformRole: "super_admin" as const, memberships: [] };
+    expect(() => requireFamilyRead(actor, "family-a")).not.toThrow();
+    expect(() => requireFamilyAdmin(actor, "family-a")).not.toThrow();
+  });
+});

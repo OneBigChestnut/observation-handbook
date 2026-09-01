@@ -1,12 +1,16 @@
 node_modules/
 dist/
 coverage/
+.DS_Store
+*.tsbuildinfo
 .env
 .env.*
 !.env.example
 
+/data/
 apps/api/data/*.db
 apps/api/data/*.db-journal
+apps/api/data/media/
 
 .worktrees/
 .pnpm-store/

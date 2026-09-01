@@ -12,4 +12,4 @@ await mkdir(dirname(databasePath), { recursive: true });
 const database = openDatabase(databasePath);
 migrate(database, { migrationsFolder: fileURLToPath(new URL("../drizzle", import.meta.url)) });
 const app = await buildApp(database, config);
-await app.listen({ host: "127.0.0.1", port: Number(process.env.PORT ?? 3000) });
+await app.listen({ host: process.env.HOST ?? "0.0.0.0", port: Number(process.env.PORT ?? 3000) });

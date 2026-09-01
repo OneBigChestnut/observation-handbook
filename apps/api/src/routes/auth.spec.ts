@@ -4,10 +4,27 @@ import { describe, expect, it } from "vitest";
 import { buildApp } from "../app.js";
 import { getApiConfig } from "../config.js";
 import { openDatabase } from "../db/client.js";
-import { accounts } from "../db/schema.js";
+import { accounts, children, families, familyMemberships } from "../db/schema.js";
 import { hashPassword } from "../password.js";
 
 describe("authentication api", () => {
+  it("registers a family administrator with the first child archive and a session", async () => {
+    const database = openDatabase(":memory:");
+    migrate(database, { migrationsFolder: fileURLToPath(new URL("../../drizzle", import.meta.url)) });
+    const app = await buildApp(database, getApiConfig({ SESSION_SECRET: "a".repeat(32) }));
+
+    const registered = await app.inject({ method: "POST", url: "/api/auth/register", payload: { username: "family-lee", password: "correct-horse-battery-staple", familyName: "李家观察室", childName: "小满" } });
+
+    expect(registered.statusCode).toBe(201);
+    expect(registered.headers["set-cookie"]).toContain("HttpOnly");
+    expect(registered.json()).toMatchObject({ account: { username: "family-lee" }, family: { name: "李家观察室", role: "admin" }, child: { name: "小满" } });
+    expect(await database.select().from(accounts)).toHaveLength(1);
+    expect(await database.select().from(families)).toHaveLength(1);
+    expect(await database.select().from(familyMemberships)).toMatchObject([{ role: "admin" }]);
+    expect(await database.select().from(children)).toMatchObject([{ name: "小满" }]);
+    await app.close();
+  });
+
   it("does not expose the current account without a session", async () => {
     const database = openDatabase(":memory:");
     migrate(database, { migrationsFolder: fileURLToPath(new URL("../../drizzle", import.meta.url)) });

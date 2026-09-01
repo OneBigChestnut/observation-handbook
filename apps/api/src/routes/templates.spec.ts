@@ -16,7 +16,7 @@ describe("template api", () => {
     const ordinaryCookie = (await app.inject({ method: "POST", url: "/api/auth/login", payload: { username: "ordinary", password: "correct-horse-battery-staple" } })).headers["set-cookie"] as string;
     const denied = await app.inject({ method: "POST", url: "/api/admin/templates", headers: { cookie: ordinaryCookie }, payload: { name: "不能创建", kind: "cover", state: "published" } });
     const created = await app.inject({ method: "POST", url: "/api/admin/templates", headers: { cookie: superCookie }, payload: { name: "自然封面", kind: "cover", state: "published" } });
-    expect(denied.statusCode).toBe(403); expect(created.statusCode).toBe(201); expect(created.json()).toMatchObject({ template: { kind: "cover", state: "published", paperSize: "A5", orientation: "portrait" } });
+    expect(denied.statusCode).toBe(403); expect(created.statusCode).toBe(201); expect(created.json()).toMatchObject({ template: { kind: "cover", state: "published", paperSize: "A5", orientation: "portrait", layout: { preset: "standard", safeMarginMm: 10, textAlign: "left" } } });
     const template = created.json().template; await database.insert(templateUsages).values({ id: "usage-a", templateVersionId: template.id, referenceType: "export", referenceId: "export-a", createdAt: new Date() });
     const edited = await app.inject({ method: "PATCH", url: `/api/admin/templates/${template.id}`, headers: { cookie: superCookie }, payload: { name: "不可改" } });
     const removed = await app.inject({ method: "DELETE", url: `/api/admin/templates/${template.id}`, headers: { cookie: superCookie } });

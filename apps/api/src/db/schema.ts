@@ -31,9 +31,14 @@ export const familyMemberships = sqliteTable("family_memberships", {
 export const children = sqliteTable("children", {
   id: text("id").primaryKey(),
   familyId: text("family_id").notNull().references(() => families.id, { onDelete: "cascade" }),
+  accountId: text("account_id").references(() => accounts.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
-}, table => [uniqueIndex("children_family_name_unique").on(table.familyId, table.name)]);
+}, table => [uniqueIndex("children_family_name_unique").on(table.familyId, table.name), uniqueIndex("children_account_id_unique").on(table.accountId)]);
+
+export const observationProjects = sqliteTable("observation_projects", {
+  id: text("id").primaryKey(), childId: text("child_id").notNull().references(() => children.id, { onDelete: "cascade" }), title: text("title").notNull(), objectName: text("object_name").notNull(), place: text("place").notNull(), question: text("question").notNull(), startedAt: text("started_at").notNull(), completedAt: text("completed_at"), cadenceDays: integer("cadence_days").notNull().default(7), focusParts: text("focus_parts").notNull().default("[]"), stages: text("stages").notNull().default("[]"), coverMediaAssetId: text("cover_media_asset_id"), conclusion: text("conclusion").notNull().default(""), createdAt: integer("created_at", { mode: "timestamp" }).notNull(), updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+}, table => [index("projects_child_updated_index").on(table.childId, table.updatedAt)]);
 
 export const mediaAssets = sqliteTable("media_assets", {
   id: text("id").primaryKey(),
@@ -49,9 +54,13 @@ export const mediaAssets = sqliteTable("media_assets", {
 export const observationCards = sqliteTable("observation_cards", {
   id: text("id").primaryKey(),
   childId: text("child_id").notNull().references(() => children.id, { onDelete: "cascade" }),
+  projectId: text("project_id").references(() => observationProjects.id, { onDelete: "set null" }),
+  observationPart: text("observation_part"), season: text("season"), stage: text("stage"), changeNote: text("change_note"), evidence: text("evidence"), hypothesis: text("hypothesis"),
   observedAt: text("observed_at").notNull(),
   text: text("text").notNull(),
+  textBlocks: text("text_blocks"),
   state: text("state", { enum: ["active", "archived"] }).notNull().default("active"),
+  templateId: text("template_id").references(() => templateVersions.id, { onDelete: "restrict" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 }, table => [index("observation_cards_child_observed_index").on(table.childId, table.observedAt)]);
@@ -83,6 +92,10 @@ export const handbooks = sqliteTable("handbooks", {
   startedAt: text("started_at").notNull(),
   completedAt: text("completed_at"),
   visibility: text("visibility", { enum: ["family", "public"] }).notNull().default("family"),
+  coverTemplateId: text("cover_template_id").references(() => templateVersions.id, { onDelete: "restrict" }),
+  backTemplateId: text("back_template_id").references(() => templateVersions.id, { onDelete: "restrict" }),
+  coverPhotoId: text("cover_photo_id").references(() => mediaAssets.id, { onDelete: "set null" }),
+  backPhotoId: text("back_photo_id").references(() => mediaAssets.id, { onDelete: "set null" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 }, table => [index("handbooks_child_updated_index").on(table.childId, table.updatedAt)]);
@@ -116,6 +129,7 @@ export const templateVersions = sqliteTable("template_versions", {
   state: text("state", { enum: ["draft", "published", "retired"] }).notNull().default("draft"),
   paperSize: text("paper_size", { enum: ["A5"] }).notNull().default("A5"),
   orientation: text("orientation", { enum: ["portrait"] }).notNull().default("portrait"),
+  layout: text("layout").notNull().default('{"preset":"standard","safeMarginMm":10,"textAlign":"left"}'),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 }, table => [index("template_versions_kind_state_index").on(table.kind, table.state)]);
@@ -135,3 +149,7 @@ export const exportJobs = sqliteTable("export_jobs", {
 export const handbookPublications = sqliteTable("handbook_publications", {
   id: text("id").primaryKey(), handbookId: text("handbook_id").notNull().references(() => handbooks.id, { onDelete: "cascade" }), childId: text("child_id").notNull().references(() => children.id, { onDelete: "cascade" }), snapshot: text("snapshot").notNull(), state: text("state", { enum: ["published", "withdrawn", "downlisted"] }).notNull().default("published"), publishedAt: integer("published_at", { mode: "timestamp" }).notNull(), withdrawnAt: integer("withdrawn_at", { mode: "timestamp" }),
 }, table => [index("handbook_publications_state_published_index").on(table.state, table.publishedAt)]);
+
+export const publicationReports = sqliteTable("publication_reports", {
+  id: text("id").primaryKey(), publicationId: text("publication_id").notNull().references(() => handbookPublications.id, { onDelete: "cascade" }), reporterId: text("reporter_id").references(() => accounts.id, { onDelete: "set null" }), reason: text("reason").notNull(), createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+}, table => [index("publication_reports_publication_created_index").on(table.publicationId, table.createdAt)]);
